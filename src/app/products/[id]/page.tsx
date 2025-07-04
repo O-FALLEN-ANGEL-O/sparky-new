@@ -10,18 +10,10 @@ import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import ProductGrid from '@/components/products/product-grid';
 import { Suspense } from 'react';
-import { ProductCardSkeleton } from '@/components/products/product-card-skeleton';
-import dynamic from 'next/dynamic';
+import { Product3DViewerClient } from '@/components/products/product-3d-viewer-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CertificateViewer } from '@/components/products/certificate-viewer';
-
-const Dynamic3DViewer = dynamic(
-  () => import('@/components/products/product-3d-viewer').then(mod => mod.Product3DViewer),
-  {
-      ssr: false,
-      loading: () => <Skeleton className="w-full h-96 rounded-lg" />
-  }
-);
+import { ProductCardSkeleton } from '@/components/products/product-card-skeleton';
 
 export default async function ProductDetailPage({
   params,
@@ -103,7 +95,7 @@ export default async function ProductDetailPage({
 
         {(product.modelUrl || product.certificateUrl) && (
             <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-8">
-                {product.modelUrl && <Dynamic3DViewer modelUrl={product.modelUrl} />}
+                {product.modelUrl && <Product3DViewerClient modelUrl={product.modelUrl} />}
                 {product.certificateUrl && <CertificateViewer certificateUrl={product.certificateUrl} />}
             </div>
         )}
