@@ -56,12 +56,34 @@ export default async function Orders({ searchParams }: { searchParams: Promise<{
             </Link>
           ))}
         </nav>
-        <form className="flex gap-2" role="search">
+        <form className="flex w-full gap-2 sm:w-auto" role="search">
           {sp.status && <input type="hidden" name="status" value={sp.status} />}
-          <input name="q" defaultValue={sp.q} placeholder="Order, customer or city" aria-label="Search orders" className="h-9 w-56 rounded-md border bg-background px-3 text-sm" />
+          <input name="q" defaultValue={sp.q} placeholder="Order, customer or city" aria-label="Search orders" className="h-9 w-full min-w-0 rounded-md border bg-background px-3 text-base sm:w-56 sm:text-sm" />
         </form>
       </div>
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      {/* phones: one card per order */}
+      <ul className="divide-y rounded-lg border bg-card md:hidden">
+        {rows.map(({ o, name, items }) => (
+          <li key={o.id}>
+            <Link href={`/dashboard/orders/${o.number}`} className="block space-y-1.5 px-4 py-3 active:bg-muted/40">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{o.number}</span>
+                <span className="tabular">{formatINR(o.total)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                <span className="min-w-0 truncate">{name} · {o.shippingAddress.city}</span>
+                <span className="shrink-0">{items} pc{items === 1 ? '' : 's'}</span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <OrderStatusBadge status={o.status} />
+                <span className="text-muted-foreground">{o.paymentMethod === 'cod' ? 'Cash' : 'Razorpay'} · {dateTime(o.createdAt)}</span>
+              </div>
+            </Link>
+          </li>
+        ))}
+        {!rows.length && <li className="p-8 text-center text-muted-foreground">No orders match. Try another filter.</li>}
+      </ul>
+      <div className="hidden scroll-hint rounded-lg border bg-card md:block">
         <table className="w-full min-w-[720px] text-[14px]">
           <thead className="border-b bg-muted/40 text-left text-muted-foreground">
             <tr>

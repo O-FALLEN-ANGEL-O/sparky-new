@@ -61,7 +61,7 @@ export default async function Payroll({ searchParams }: { searchParams: Promise<
             }
             bodyClassName="p-0"
           >
-            <div className="overflow-x-auto">
+            <div className="scroll-hint rounded-b-lg">
               <table className="w-full min-w-[860px] text-[13.5px]">
                 <thead className="border-b bg-muted/40 text-right text-muted-foreground">
                   <tr>

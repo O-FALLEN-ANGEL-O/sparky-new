@@ -30,14 +30,14 @@ export default async function People({ searchParams }: { searchParams: Promise<{
         title={teamOnly ? 'Your team' : 'People'}
         description={teamOnly ? 'Everyone who reports to you.' : `${people.length} people across the company.`}
         actions={
-          <form className="flex gap-2" role="search">
+          <form className="flex w-full gap-2 sm:w-auto" role="search">
             {me.role === 'manager' && <a href={teamOnly ? '/dashboard/people?all=1' : '/dashboard/people'} className="self-center text-sm underline underline-offset-4">{teamOnly ? 'Show everyone' : 'Only my team'}</a>}
-            <input name="q" defaultValue={sp.q} placeholder="Name, team or title" aria-label="Search people" className="h-9 w-52 rounded-md border bg-background px-3 text-sm" />
+            <input name="q" defaultValue={sp.q} placeholder="Name, team or title" aria-label="Search people" className="h-9 w-full min-w-0 rounded-md border bg-background px-3 text-base sm:w-56 sm:text-sm" />
           </form>
         }
       />
       {canManage && <AddStaffForm managers={managers} />}
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <div className="scroll-hint rounded-lg border bg-card">
         <table className="w-full min-w-[820px] text-[14px]">
           <thead className="border-b bg-muted/40 text-left text-muted-foreground">
             <tr>

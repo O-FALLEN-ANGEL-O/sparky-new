@@ -9,6 +9,8 @@ import { can, ROLE_LABEL } from '@/lib/roles'
 import { requireUser } from '@/lib/server/auth'
 import { STAFF_NAV } from '@/lib/staff-nav'
 import Link from 'next/link'
+import { LogOut, Store } from 'lucide-react'
+import { Logo } from '@/components/logo'
 
 export const metadata: Metadata = { title: { default: 'Dashboard', template: '%s · Sparkle staff' }, robots: { index: false } }
 
@@ -49,12 +51,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex min-h-dvh bg-[#f7f5f0] dark:bg-background">
       <Sidebar groups={groups} badges={badges} user={{ name: user.name, roleLabel: ROLE_LABEL[user.role] }} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-end gap-2 border-b bg-background/80 px-4 backdrop-blur md:px-8">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">View store</Link>
-          <ThemeToggle />
-          <form action={logout}>
-            <button className="h-9 px-3 text-sm text-muted-foreground hover:text-foreground">Sign out</button>
-          </form>
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:px-4 md:px-8">
+          {/* the menu button (fixed, from Sidebar) sits at the left on phones and tablets */}
+          <Logo href="/dashboard" className="ml-11 lg:hidden max-[359px]:[&_svg]:hidden" />
+          <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
+            <Link href="/" className="inline-flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:text-foreground sm:px-3" aria-label="View store">
+              <Store className="h-4 w-4 sm:hidden" />
+              <span className="hidden sm:inline">View store</span>
+            </Link>
+            <ThemeToggle />
+            <form action={logout}>
+              <button className="inline-flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:text-foreground sm:px-3" aria-label="Sign out">
+                <LogOut className="h-4 w-4 sm:hidden" />
+                <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </form>
+          </div>
         </header>
         <main id="main" className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>

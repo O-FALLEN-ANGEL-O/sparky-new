@@ -92,7 +92,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<SP>
         <p className="mt-3 text-muted-foreground">{filters.q ? `${products.length} piece${products.length === 1 ? '' : 's'} found.` : category?.description ?? 'Every piece in the collection, hallmarked and ready to ship.'}</p>
       </header>
 
-      <nav aria-label="Categories" className="-mx-4 mb-8 flex gap-2 overflow-x-auto px-4 pb-1">
+      <nav aria-label="Categories" className="-mx-4 mb-8 flex gap-2 chip-row overflow-x-auto px-4 pb-1">
         <Pill href={href({ category: null })} active={!filters.category}>All</Pill>
         {categories.map((c) => (
           <Pill key={c.slug} href={href({ category: c.slug })} active={filters.category === c.slug}>
@@ -104,16 +104,16 @@ export default async function Shop({ searchParams }: { searchParams: Promise<SP>
       <div className="grid gap-10 lg:grid-cols-[220px_1fr]">
         <aside className="hidden lg:block" aria-label="Filters">{filterPanel}</aside>
         <div>
-          <div className="mb-6 flex items-center justify-between gap-4 border-b pb-4">
-            <details className="lg:hidden">
-              <summary className="cursor-pointer list-none text-sm underline underline-offset-4">Filters{activeCount ? ` (${activeCount})` : ''}</summary>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b pb-4">
+            <details className="lg:hidden [&[open]]:order-last [&[open]]:w-full">
+              <summary className="cursor-pointer list-none py-2 text-sm underline underline-offset-4">Filters{activeCount ? ` (${activeCount})` : ''}</summary>
               <div className="mt-6 pb-4">{filterPanel}</div>
             </details>
             <p className="hidden text-sm text-muted-foreground lg:block">{products.length} pieces</p>
-            <form className="flex items-center gap-2 text-sm" action="/shop">
+            <form className="flex min-w-0 items-center gap-2 text-sm" action="/shop">
               {Object.entries(sp).map(([k, v]) => (k === 'sort' || v == null ? null : <input key={k} type="hidden" name={k} value={Array.isArray(v) ? v.join(',') : v} />))}
               <label htmlFor="sort" className="text-muted-foreground">Sort</label>
-              <select id="sort" name="sort" defaultValue={filters.sort} className="h-9 border bg-background px-2">
+              <select id="sort" name="sort" defaultValue={filters.sort} className="h-9 min-w-0 max-w-[10.5rem] border bg-background px-2">
                 {SORTS.map((s) => (
                   <option key={s.key} value={s.key}>{s.label}</option>
                 ))}

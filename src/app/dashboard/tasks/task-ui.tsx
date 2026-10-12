@@ -42,8 +42,8 @@ export function ProgressControl({ id, progress, editable }: { id: number; progre
   const router = useRouter()
   const set = (p: number) => start(async () => { await updateTaskProgress(id, p); router.refresh() })
   return (
-    <div className="flex items-center gap-3">
-      <div className="h-2 w-28 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progress">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="h-2 w-24 shrink-0 overflow-hidden rounded-full bg-muted sm:w-28" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progress">
         <div className="h-full rounded-full" style={{ width: `${progress}%`, background: 'var(--series-1)' }} />
       </div>
       <span className="w-10 text-sm tabular">{progress}%</span>

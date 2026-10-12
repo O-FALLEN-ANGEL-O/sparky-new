@@ -17,7 +17,8 @@ export const metadata: Metadata = {
   ),
   title: { default: 'Sparkle — Fine jewellery from Mangaluru', template: '%s · Sparkle' },
   description: 'Hallmarked gold, certified diamonds and heirloom temple jewellery, handcrafted in Mangaluru and delivered insured across India.',
-  icons: { icon: '/favicon.svg' },
+  applicationName: 'Sparkle',
+  appleWebApp: { title: 'Sparkle', statusBarStyle: 'black-translucent' },
 }
 
 export const viewport: Viewport = {

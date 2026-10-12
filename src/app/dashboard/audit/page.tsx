@@ -37,9 +37,9 @@ export default async function Audit({ searchParams }: { searchParams: Promise<{ 
             <Link key={a.a} href={link({ area: a.a, page: undefined })} className={`rounded-md px-3 py-1.5 capitalize ${sp.area === a.a ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted'}`}>{a.a} <span className="opacity-70 tabular">{a.n}</span></Link>
           ))}
         </nav>
-        <form role="search">{sp.area && <input type="hidden" name="area" value={sp.area} />}<input name="q" defaultValue={sp.q} placeholder="Email, IP or detail" aria-label="Search the log" className="h-9 w-56 rounded-md border bg-background px-3 text-sm" /></form>
+        <form role="search" className="w-full sm:w-auto">{sp.area && <input type="hidden" name="area" value={sp.area} />}<input name="q" defaultValue={sp.q} placeholder="Email, IP or detail" aria-label="Search the log" className="h-9 w-full min-w-0 rounded-md border bg-background px-3 text-base sm:w-56 sm:text-sm" /></form>
       </div>
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <div className="scroll-hint rounded-lg border bg-card">
         <table className="w-full min-w-[760px] text-[13.5px]">
           <thead className="border-b bg-muted/40 text-left text-muted-foreground">
             <tr><th className="px-4 py-2.5 font-medium">When</th><th className="px-4 py-2.5 font-medium">Who</th><th className="px-4 py-2.5 font-medium">Action</th><th className="px-4 py-2.5 font-medium">Detail</th><th className="px-4 py-2.5 font-medium">IP</th></tr>

@@ -26,7 +26,7 @@ export function LeaveForm({ startOpen }: { startOpen?: boolean }) {
       <Field label="From" name="startDate" type="date" min={today} defaultValue={today} error={e.startDate} />
       <Field label="To" name="endDate" type="date" min={today} defaultValue={today} error={e.endDate} />
       <Field label="Reason" name="reason" error={e.reason} />
-      <div className="flex items-end gap-2 md:col-span-4">
+      <div className="flex flex-wrap items-center gap-2 md:col-span-4">
         <Submit>Send request</Submit>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
         <span className="text-sm text-muted-foreground">Sundays aren’t counted.</span>

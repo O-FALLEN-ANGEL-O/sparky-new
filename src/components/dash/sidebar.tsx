@@ -74,13 +74,13 @@ export function Sidebar({ groups, badges, user }: { groups: NavGroup[]; badges: 
   return (
     <>
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col bg-velvet lg:flex">{body}</aside>
-      <button className="fixed left-3 top-3 z-40 rounded-md bg-velvet p-2 text-[#f6efe2] lg:hidden" onClick={() => setOpen(true)} aria-label="Open navigation">
+      <button className="fixed left-3 top-3 z-40 rounded-md bg-velvet p-2.5 text-[#f6efe2] lg:hidden" onClick={() => setOpen(true)} aria-label="Open navigation">
         <Menu className="h-5 w-5" />
       </button>
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-velvet">
+          <aside className="absolute inset-y-0 left-0 flex w-[85%] max-w-72 flex-col bg-velvet">
             <button className="absolute right-3 top-4 p-1 text-[#f6efe2]" onClick={() => setOpen(false)} aria-label="Close navigation">
               <X className="h-5 w-5" />
             </button>

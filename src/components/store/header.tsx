@@ -40,11 +40,11 @@ export function Header({ user, cartCount }: { user: { name: string; home: string
         dark ? (scrolled ? 'bg-velvet/85 text-[#f6efe2] backdrop-blur-md' : 'bg-velvet text-[#f6efe2]') : 'border-b bg-background/90 text-foreground backdrop-blur-md',
       )}
     >
-      <div className="container flex h-16 items-center gap-6 md:h-[72px]">
+      <div className="container flex h-16 items-center gap-3 sm:gap-6 md:h-[72px]">
         <button className="-ml-2 p-2 md:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
           <Menu className="h-5 w-5" />
         </button>
-        <Logo />
+        <Logo className={cn(searching && 'max-sm:hidden')} />
         <nav className="hidden flex-1 items-center gap-7 md:flex" aria-label="Main">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} className={cn('text-[15px] transition-opacity hover:opacity-100', dark ? 'opacity-80' : 'opacity-75')}>
@@ -52,14 +52,14 @@ export function Header({ user, cartCount }: { user: { name: string; home: string
             </Link>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-1 md:ml-0">
+        <div className={cn('ml-auto flex min-w-0 items-center gap-0.5 sm:gap-1 md:ml-0', searching && 'max-sm:flex-1')}>
           {searching ? (
-            <form action="/shop" className="flex items-center" role="search">
+            <form action="/shop" className="flex min-w-0 flex-1 items-center" role="search">
               <input
                 name="q"
                 autoFocus
                 placeholder="Search rings, rubies, 22K…"
-                className={cn('h-9 w-44 border-b bg-transparent px-1 text-sm outline-none placeholder:opacity-60 sm:w-64', dark ? 'border-white/30' : 'border-foreground/30')}
+                className={cn('h-9 w-full min-w-0 border-b bg-transparent px-1 text-base outline-none placeholder:opacity-60 sm:w-64 sm:text-sm', dark ? 'border-white/30' : 'border-foreground/30')}
                 onBlur={(e) => !e.currentTarget.value && setSearching(false)}
               />
               <button type="button" className="p-2" onClick={() => setSearching(false)} aria-label="Close search">

@@ -257,7 +257,8 @@ console.log('\npeople: leave, tasks, payroll, hiring')
   await go(page, '/dashboard/leave?new=1')
   const start = new Date(Date.now() + 40 * 86400000)
   while (start.getDay() === 0) start.setDate(start.getDate() + 1)
-  const iso = start.toISOString().slice(0, 10)
+  // local calendar date (toISOString would shift to UTC and can land on a Sunday after midnight IST)
+  const iso = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
   await page.fill('input[name=startDate]', iso)
   await page.fill('input[name=endDate]', iso)
   await page.fill('input[name=reason]', 'E2E test leave')
@@ -282,7 +283,7 @@ console.log('\npeople: leave, tasks, payroll, hiring')
 }
 {
   const { ctx, page } = await session('hr@sparkle.com')
-  const month = new Date().toISOString().slice(0, 7)
+  const month = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   await q(`delete from payroll_runs where month = $1`, [month])
   await go(page, '/dashboard/payroll')
   await page.fill('input[type=month]', month)

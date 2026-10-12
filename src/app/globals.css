@@ -97,6 +97,22 @@
     @apply bg-background text-foreground font-body antialiased;
     font-feature-settings: 'kern', 'liga';
   }
+  /* Grid and flex children may shrink below their content's natural width, so wide tables
+     and long names scroll or wrap inside their own box instead of widening the page. */
+  .grid > *,
+  .flex-1 {
+    min-width: 0;
+  }
+  /* Long unbroken words (emails, order numbers) wrap rather than push the layout sideways. */
+  p,
+  dd,
+  dt,
+  li,
+  h1,
+  h2,
+  h3 {
+    overflow-wrap: break-word;
+  }
   h1,
   h2,
   h3 {
@@ -135,5 +151,27 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  /* Wide tables scroll sideways inside their card on small screens; soft edge shadows
+     show there is more to see, and disappear once you reach the end. */
+  .scroll-hint {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background:
+      linear-gradient(to right, hsl(var(--card)) 35%, hsl(var(--card) / 0)) left center / 32px 100% no-repeat local,
+      linear-gradient(to left, hsl(var(--card)) 35%, hsl(var(--card) / 0)) right center / 32px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.14), transparent) left center / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.14), transparent) right center / 12px 100% no-repeat scroll,
+      hsl(var(--card));
+  }
+  /* Horizontal chip rows (categories, account tabs) scroll without a visible scrollbar. */
+  .chip-row {
+    scrollbar-width: none;
+  }
+  .chip-row::-webkit-scrollbar {
+    display: none;
   }
 }

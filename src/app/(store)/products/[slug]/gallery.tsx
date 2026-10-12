@@ -25,7 +25,7 @@ export function Gallery({ images, name, spec }: { images: string[]; name: string
         )}
         {mode === '3d' && <p className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-xs text-muted-foreground">Drag to turn · Scroll or pinch to zoom</p>}
       </div>
-      <div className="flex gap-3" role="tablist" aria-label="Views">
+      <div className="flex gap-2 sm:gap-3" role="tablist" aria-label="Views">
         {images.map((src, i) => (
           <button
             key={src}
@@ -36,7 +36,7 @@ export function Gallery({ images, name, spec }: { images: string[]; name: string
               setMode('photo')
               setActive(i)
             }}
-            className={cn('relative h-20 w-20 overflow-hidden bg-[#f1ece2] ring-offset-2 transition', mode === 'photo' && active === i ? 'ring-1 ring-foreground' : 'opacity-70 hover:opacity-100')}
+            className={cn('relative aspect-square min-w-0 max-w-20 flex-1 overflow-hidden bg-[#f1ece2] ring-offset-2 transition', mode === 'photo' && active === i ? 'ring-1 ring-foreground' : 'opacity-70 hover:opacity-100')}
           >
             <Image src={src} alt="" fill sizes="80px" className="object-cover" />
           </button>
@@ -45,7 +45,7 @@ export function Gallery({ images, name, spec }: { images: string[]; name: string
           role="tab"
           aria-selected={mode === '3d'}
           onClick={() => setMode('3d')}
-          className={cn('flex h-20 w-20 flex-col items-center justify-center gap-1 border text-xs ring-offset-2 transition', mode === '3d' ? 'ring-1 ring-foreground' : 'text-muted-foreground hover:text-foreground')}
+          className={cn('flex aspect-square min-w-0 max-w-20 flex-1 flex-col items-center justify-center gap-1 border text-[11px] leading-tight ring-offset-2 sm:text-xs transition', mode === '3d' ? 'ring-1 ring-foreground' : 'text-muted-foreground hover:text-foreground')}
         >
           <Box className="h-5 w-5" />
           3D view

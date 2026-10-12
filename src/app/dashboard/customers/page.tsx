@@ -24,8 +24,8 @@ export default async function Customers({ searchParams }: { searchParams: Promis
     group by u.id order by spent desc`)
   return (
     <div>
-      <PageHeader title="Customers" description={`${rows.length} customer accounts, ranked by lifetime spend.`} actions={<form role="search"><input name="q" defaultValue={q} placeholder="Name or email" aria-label="Search customers" className="h-9 w-56 rounded-md border bg-background px-3 text-sm" /></form>} />
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <PageHeader title="Customers" description={`${rows.length} customer accounts, ranked by lifetime spend.`} actions={<form role="search" className="w-full sm:w-auto"><input name="q" defaultValue={q} placeholder="Name or email" aria-label="Search customers" className="h-9 w-full min-w-0 rounded-md border bg-background px-3 text-base sm:w-56 sm:text-sm" /></form>} />
+      <div className="scroll-hint rounded-lg border bg-card">
         <table className="w-full min-w-[720px] text-[14px]">
           <thead className="border-b bg-muted/40 text-left text-muted-foreground">
             <tr>

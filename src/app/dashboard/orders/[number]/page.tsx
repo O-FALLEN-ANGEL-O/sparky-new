@@ -38,13 +38,13 @@ export default async function OrderDetail({ params }: { params: Promise<{ number
           <Panel title="Items" bodyClassName="p-0">
             <ul className="divide-y">
               {items.map((i) => (
-                <li key={i.id} className="flex items-center gap-4 px-5 py-3">
+                <li key={i.id} className="flex items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5">
                   <div className="relative h-14 w-14 shrink-0 rounded bg-[#f1ece2]">{i.image && <Image src={i.image} alt="" fill sizes="56px" className="rounded object-cover" />}</div>
-                  <div className="flex-1">
-                    <p>{i.name}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate">{i.name}</p>
                     <p className="text-sm text-muted-foreground">{i.quantity} × {formatINR(i.price)}</p>
                   </div>
-                  <p className="tabular">{formatINR(i.price * i.quantity)}</p>
+                  <p className="shrink-0 tabular">{formatINR(i.price * i.quantity)}</p>
                 </li>
               ))}
             </ul>

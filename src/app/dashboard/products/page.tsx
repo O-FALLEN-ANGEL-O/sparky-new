@@ -16,7 +16,24 @@ export default async function Products() {
   return (
     <div>
       <PageHeader title="Products" description={`${rows.length} pieces in the catalogue.`} actions={<Button asChild><Link href="/dashboard/products/new">Add a piece</Link></Button>} />
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <ul className="divide-y rounded-lg border bg-card md:hidden">
+        {rows.map(({ p, cat }) => (
+          <li key={p.id}>
+            <Link href={`/dashboard/products/${p.id}`} className="flex items-center gap-3 px-4 py-3 active:bg-muted/40">
+              <span className="relative h-12 w-12 shrink-0 rounded bg-[#f1ece2]"><Image src={p.images[0]} alt="" fill sizes="48px" className="rounded object-cover" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{p.name}</span>
+                <span className="block truncate text-sm text-muted-foreground">{cat} · {p.purity} {METAL_LABEL[p.metal].toLowerCase()}</span>
+              </span>
+              <span className="shrink-0 text-right text-sm">
+                <span className="block tabular">{formatINR(p.price)}</span>
+                <span className="mt-0.5 block">{p.stock <= p.lowStockThreshold ? <Pill tone={p.stock === 0 ? 'danger' : 'warn'}>{p.stock === 0 ? 'Sold out' : `${p.stock} left`}</Pill> : !p.active ? <Pill>Hidden</Pill> : <span className="text-muted-foreground tabular">{p.stock} in stock</span>}</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="scroll-hint hidden rounded-lg border bg-card md:block">
         <table className="w-full min-w-[760px] text-[14px]">
           <thead className="border-b bg-muted/40 text-left text-muted-foreground">
             <tr>

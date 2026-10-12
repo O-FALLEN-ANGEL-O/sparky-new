@@ -42,9 +42,9 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<{ 
               {list.length ? (
                 <ul className="divide-y">
                   {list.map(({ t, who }) => (
-                    <li key={t.id} className="space-y-2 px-5 py-4">
+                    <li key={t.id} className="min-w-0 space-y-2 px-4 py-4 sm:px-5">
                       <div className="flex items-start justify-between gap-3">
-                        <p className="font-medium">{t.title}</p>
+                        <p className="min-w-0 font-medium [overflow-wrap:anywhere]">{t.title}</p>
                         <Pill tone={t.priority === 'high' ? 'danger' : t.priority === 'medium' ? 'gold' : 'neutral'}>{t.priority}</Pill>
                       </div>
                       {t.description && <p className="text-sm text-muted-foreground">{t.description}</p>}

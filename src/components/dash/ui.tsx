@@ -9,24 +9,24 @@ export function PageHeader({ title, description, actions }: { title: string; des
         <h1 className="text-3xl md:text-4xl">{title}</h1>
         {description && <p className="mt-1 max-w-2xl text-[15px] text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex w-full flex-wrap gap-2 sm:w-auto">{actions}</div>}
     </div>
   )
 }
 
 export function Panel({ title, description, action, children, className, bodyClassName }: { title?: React.ReactNode; description?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string; bodyClassName?: string }) {
   return (
-    <section className={cn('rounded-lg border bg-card', className)}>
+    <section className={cn('min-w-0 rounded-lg border bg-card', className)}>
       {(title || action) && (
-        <header className="flex items-start justify-between gap-3 border-b px-5 py-3.5">
-          <div>
+        <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b px-4 py-3.5 sm:px-5">
+          <div className="min-w-0">
             {title && <h2 className="font-headline text-xl">{title}</h2>}
             {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </div>
           {action}
         </header>
       )}
-      <div className={cn('p-5', bodyClassName)}>{children}</div>
+      <div className={cn('p-4 sm:p-5', bodyClassName)}>{children}</div>
     </section>
   )
 }
@@ -35,13 +35,16 @@ export function Panel({ title, description, action, children, className, bodyCla
 export function Stat({ label, value, change, note, href }: { label: string; value: string; change?: number | null; note?: string; href?: string }) {
   const up = (change ?? 0) >= 0
   const body = (
-    <div className="h-full rounded-lg border bg-card p-5 transition-colors hover:border-foreground/30">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 font-headline text-[2.1rem] leading-none tabular">{value}</p>
+    <div className="h-full rounded-lg border bg-card p-4 transition-colors hover:border-foreground/30 sm:p-5">
+      <p className="text-[13px] text-muted-foreground sm:text-sm">{label}</p>
+      <p className="mt-2 font-headline text-[1.75rem] leading-none tabular sm:text-[2.1rem]">{value}</p>
       {change != null ? (
-        <p className={cn('mt-2 inline-flex items-center gap-1 text-sm', up ? 'text-ok' : 'text-kumkum')}>
-          {up ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-          {up ? 'Up' : 'Down'} {Math.abs(change * 100).toFixed(0)}% <span className="text-muted-foreground">{note ?? 'vs previous period'}</span>
+        <p className="mt-2 text-[13px] leading-snug sm:text-sm">
+          <span className={cn('inline-flex items-center gap-0.5 whitespace-nowrap font-medium', up ? 'text-ok' : 'text-kumkum')}>
+            {up ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+            {up ? 'Up' : 'Down'} {Math.abs(change * 100).toFixed(0)}%
+          </span>{' '}
+          <span className="text-muted-foreground">{note ?? 'vs previous period'}</span>
         </p>
       ) : note ? (
         <p className="mt-2 text-sm text-muted-foreground">{note}</p>
