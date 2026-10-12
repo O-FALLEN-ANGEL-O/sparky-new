@@ -17,7 +17,9 @@
     "db:migrate:remote": "wrangler d1 migrations apply sparkle --remote",
     "db:seed": "tsx scripts/seed.ts",
     "db:seed:remote": "tsx scripts/seed.ts --remote",
-    "db:reset": "tsx scripts/reset.ts"
+    "db:reset": "tsx scripts/reset.ts",
+    "gateway:dev": "wrangler dev --config d1-gateway/wrangler.jsonc --port 8788 --persist-to .wrangler/state",
+    "gateway:deploy": "wrangler deploy --config d1-gateway/wrangler.jsonc"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.6",

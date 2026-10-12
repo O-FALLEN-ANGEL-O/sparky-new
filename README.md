@@ -86,9 +86,58 @@ sign-in lockout checks. It needs `CHROME=/path/to/chrome` if Playwright’s brow
 `RAZORPAY_WEBHOOK_SECRET=test_webhook_secret` in `.env.local` for the webhook test. To test the
 built Worker instead, run `npm run preview` and `BASE=http://localhost:8787 npm run test:e2e`.
 
-## Deploy to Cloudflare
+## Deploy: site on Vercel, database on Cloudflare D1
 
-Everything runs on Cloudflare’s free plan: the site is a Worker and the data lives in D1.
+Vercel can’t attach a D1 database directly, so a tiny Cloudflare Worker, the **D1 gateway**
+(`d1-gateway/`), holds the database and answers the site’s queries over HTTPS. Every request needs a
+secret token, so keep it like a database password. Batches still run as one D1 transaction, so stock
+stays exact. Both services have free plans that cover this.
+
+```
+browser ──► Vercel (Next.js, Mumbai) ──HTTPS + token──► D1 gateway Worker ──► Cloudflare D1
+```
+
+**Cloudflare (database)**
+1. `npx wrangler login`
+2. `npx wrangler d1 create sparkle --location apac` and copy the `database_id` it prints into **both**
+   `wrangler.jsonc` and `d1-gateway/wrangler.jsonc`, replacing the zeros.
+3. Create the tables and (optionally) the demo data:
+   ```bash
+   npm run db:migrate:remote
+   npm run db:seed:remote
+   ```
+4. Make a long random token and store it in the gateway, then deploy the gateway:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # copy the output
+   npx wrangler secret put GATEWAY_TOKEN --config d1-gateway/wrangler.jsonc      # paste it
+   npm run gateway:deploy
+   ```
+   Note the address it prints, e.g. `https://sparkle-d1-gateway.<you>.workers.dev`. Opening `/health`
+   there should show `{"ok":true}`.
+
+**Vercel (website)**
+5. Import the GitHub repo in Vercel (framework: Next.js; the defaults are fine).
+6. Add environment variables (for Production, Preview and Development):
+
+   | Name | Value |
+   |---|---|
+   | `D1_GATEWAY_URL` | the gateway address from step 4 |
+   | `D1_GATEWAY_TOKEN` | the token from step 4 |
+   | `NEXT_PUBLIC_SITE_URL` | your Vercel address, e.g. `https://sparkle.vercel.app` |
+   | `DEMO_MODE` | `1` for the demo sign-in buttons, `0` for a real store |
+   | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | optional, for online payments |
+
+7. Deploy. `vercel.json` runs the site in Mumbai (`bom1`), close to the database. Dashboard → System
+   health should say “Database reached through the D1 gateway”.
+
+To try this setup on your computer: `npm run gateway:dev` in one terminal (put
+`GATEWAY_TOKEN=<token>` in `d1-gateway/.dev.vars`), then set `D1_GATEWAY_URL=http://localhost:8788`
+and `D1_GATEWAY_TOKEN` in `.env.local` and run `npm run dev`.
+
+## Or deploy everything to Cloudflare
+
+
+The site can also run as a Worker next to the database, with no gateway needed.
 
 1. **Sign in:** `npx wrangler login` (opens your browser).
 2. **Create the database:** `npx wrangler d1 create sparkle`. Copy the `database_id` it prints into
@@ -133,8 +182,8 @@ The studio page that the renderer uses (`/studio`) is switched off in production
 ## How it’s built
 
 - **Next.js 15** (App Router, server components and server actions), **React 19**, TypeScript, Tailwind
-- **Cloudflare Workers** via OpenNext, **Cloudflare D1** (SQLite) with **Drizzle ORM**; migrations in
-  `drizzle/`, schema in `src/db/schema.ts`
+- Runs on **Vercel** or **Cloudflare Workers** (via OpenNext); data in **Cloudflare D1** (SQLite) with
+  **Drizzle ORM**, reached through the gateway Worker from Vercel; migrations in `drizzle/`, schema in `src/db/schema.ts`
 - **three.js** via React Three Fiber and drei for every jewel (`src/components/three/`)
 - Sessions are random tokens stored hashed in the database, sent as an HttpOnly cookie; passwords use
   PBKDF2-SHA256 (Web Crypto, fast enough for Workers’ CPU limits);
@@ -151,8 +200,9 @@ src/
   app/delivery/       delivery partner app
   app/actions/        server actions (auth, store, checkout, staff, people, delivery)
   components/three/   procedural jewellery, studio lighting, scroll story, viewer
-  db/                 Drizzle schema and client
+  db/                 Drizzle schema, D1 client and gateway client
   lib/server/         auth, cart, orders, analytics, people, Razorpay, settings
+d1-gateway/           Worker that serves D1 to the Vercel-hosted site
 scripts/              seed, reset, render-products, D1 helpers
 tests/                unit and end-to-end tests
 ```

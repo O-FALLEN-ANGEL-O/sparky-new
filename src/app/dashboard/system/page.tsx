@@ -2,12 +2,20 @@ import { Fragment } from 'react'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { sql } from 'drizzle-orm'
 import { PageHeader, Panel, Pill, Stat } from '@/components/dash/ui'
-import { db } from '@/db'
+import { db, viaGateway } from '@/db'
 import { requireUser } from '@/lib/server/auth'
 import { razorpayConfigured } from '@/lib/server/razorpay'
 
 export const metadata = { title: 'System health' }
 export const dynamic = 'force-dynamic'
+
+function cfInfo() {
+  try {
+    return getCloudflareContext().cf as { colo?: string; country?: string } | undefined
+  } catch {
+    return undefined // not running on Cloudflare
+  }
+}
 
 export default async function System() {
   await requireUser({ permission: 'system.view' })
@@ -21,7 +29,8 @@ export default async function System() {
       union all select 'users', count(*) from users union all select 'audit log', count(*) from audit_logs
       union all select 'sessions', count(*) from sessions where expires_at > ${Date.now()}`),
   ])
-  const cf = getCloudflareContext().cf as { colo?: string; country?: string } | undefined
+  const cf = cfInfo()
+  const vercel = !!process.env.VERCEL
   const checks: [string, boolean, string][] = [
     ['Database', latency < 500, `${latency.toFixed(1)} ms round trip`],
     ['Online payments', razorpayConfigured(), razorpayConfigured() ? 'Razorpay keys set' : 'Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to switch on'],
@@ -30,12 +39,12 @@ export default async function System() {
   ]
   return (
     <div className="space-y-6">
-      <PageHeader title="System health" description="Live readings from the Worker and D1 database this page was rendered on." />
+      <PageHeader title="System health" description="Live readings from the server and D1 database this page was rendered on." />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Database latency" value={`${latency.toFixed(0)} ms`} note="Cloudflare D1 (SQLite)" />
-        <Stat label="Database size" value={bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : '—'} note="Free plan allows 5 GB" />
-        <Stat label="Served from" value={cf?.colo ?? 'Local'} note={cf?.country ? `Visitor in ${cf.country}` : 'Development preview'} />
-        <Stat label="Runtime" value="Workers" note="Cloudflare edge, no server to patch" />
+        <Stat label="Database size" value={bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : '—'} note="D1 free plan allows 5 GB" />
+        <Stat label="Served from" value={vercel ? (process.env.VERCEL_REGION ?? 'Vercel') : (cf?.colo ?? 'Local')} note={vercel ? 'Vercel region' : cf?.country ? `Visitor in ${cf.country}` : 'Development'} />
+        <Stat label="Runtime" value={vercel ? 'Vercel' : cf ? 'Workers' : 'Node'} note={viaGateway() ? 'Database reached through the D1 gateway' : 'Database bound directly'} />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Checks" bodyClassName="p-0">
@@ -50,8 +59,8 @@ export default async function System() {
         </Panel>
         <Panel title="Platform" bodyClassName="p-0">
           <dl className="grid grid-cols-[10rem_1fr] gap-y-2 px-5 py-4 text-sm">
-            <dt className="text-muted-foreground">Host</dt><dd>Cloudflare Workers{cf?.colo ? ` (${cf.colo})` : ''}</dd>
-            <dt className="text-muted-foreground">Database</dt><dd>D1 binding <code>DB</code></dd>
+            <dt className="text-muted-foreground">Host</dt><dd>{vercel ? `Vercel (${process.env.VERCEL_REGION ?? 'region'})` : `Cloudflare Workers${cf?.colo ? ` (${cf.colo})` : ''}`}</dd>
+            <dt className="text-muted-foreground">Database</dt><dd>{viaGateway() ? <>D1 via gateway <code>{new URL(process.env.D1_GATEWAY_URL!).host}</code></> : <>D1 binding <code>DB</code></>}</dd>
             {counts.map((c) => (<Fragment key={c.t}><dt className="capitalize text-muted-foreground">{c.t}</dt><dd className="tabular">{c.n.toLocaleString('en-IN')}</dd></Fragment>))}
           </dl>
         </Panel>
