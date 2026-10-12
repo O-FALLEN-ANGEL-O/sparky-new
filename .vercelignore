@@ -1,0 +1,6 @@
+.wrangler
+.open-next
+.dev.vars*
+d1-gateway
+tests
+scripts/render-products.mjs

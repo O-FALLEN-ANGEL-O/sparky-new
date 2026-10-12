@@ -1,0 +1,145 @@
+# Puts Sparkle live: database + gateway on Cloudflare, website on Vercel.
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN  – "Edit Cloudflare Workers" template plus Account › D1 › Edit
+#   VERCEL_TOKEN          – vercel.com/account/tokens
+# Safe to re-run: it only creates what is missing and only seeds an empty database.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      rotate_token:
+        description: Make a new gateway token (updates Cloudflare and Vercel together)
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT: sparkle
+      CI: 'true'
+    steps:
+      - name: Check secrets
+        run: |
+          missing=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$VERCEL_TOKEN" ] || missing="$missing VERCEL_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::error::Add these repository secrets first:$missing"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm install --global vercel@latest
+
+      # ------------------------------------------------------------ Cloudflare
+      - name: Find Cloudflare account
+        run: |
+          acct=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/accounts | jq -r '.result[0].id')
+          if [ -z "$acct" ] || [ "$acct" = "null" ]; then echo "::error::The Cloudflare token can't see any account. Recreate it with the Edit Cloudflare Workers template."; exit 1; fi
+          echo "CLOUDFLARE_ACCOUNT_ID=$acct" >> "$GITHUB_ENV"
+
+      - name: Create the D1 database if needed
+        run: |
+          id=$(npx wrangler d1 list --json | jq -r '.[] | select(.name=="sparkle") | .uuid')
+          if [ -z "$id" ]; then
+            npx wrangler d1 create sparkle --location apac
+            id=$(npx wrangler d1 list --json | jq -r '.[] | select(.name=="sparkle") | .uuid')
+          fi
+          echo "Database id: $id"
+          sed -i "s/00000000-0000-0000-0000-000000000000/$id/" wrangler.jsonc d1-gateway/wrangler.jsonc
+
+      - name: Create tables
+        run: npx wrangler d1 migrations apply sparkle --remote
+
+      - name: Load demo data (only into an empty database)
+        run: npx tsx scripts/seed.ts --remote
+
+      - name: Make sure the account has a workers.dev address
+        run: |
+          api=https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain
+          sub=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api" | jq -r '.result.subdomain // empty')
+          if [ -z "$sub" ]; then
+            sub="sparkle-$(openssl rand -hex 3)"
+            curl -fsS -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' --data "{\"subdomain\":\"$sub\"}" "$api" > /dev/null
+          fi
+          echo "GATEWAY_URL=https://sparkle-d1-gateway.$sub.workers.dev" >> "$GITHUB_ENV"
+
+      - name: Deploy the D1 gateway
+        run: npx wrangler deploy --config d1-gateway/wrangler.jsonc
+
+      # ---------------------------------------------------------------- Vercel
+      - name: Link the Vercel project
+        run: vercel link --yes --project "$VERCEL_PROJECT" --token "$VERCEL_TOKEN"
+
+      - name: Gateway token (created once, kept in Cloudflare and Vercel only)
+        run: |
+          has_cf=$(npx wrangler secret list --config d1-gateway/wrangler.jsonc 2>/dev/null | grep -c GATEWAY_TOKEN || true)
+          has_vc=$(vercel env ls production --token "$VERCEL_TOKEN" 2>/dev/null | grep -c D1_GATEWAY_TOKEN || true)
+          if [ "$has_cf" = "0" ] || [ "$has_vc" = "0" ] || [ "${{ inputs.rotate_token }}" = "true" ]; then
+            token=$(openssl rand -hex 32)
+            echo "::add-mask::$token"
+            printf '%s' "$token" | npx wrangler secret put GATEWAY_TOKEN --config d1-gateway/wrangler.jsonc
+            vercel env rm D1_GATEWAY_TOKEN production --yes --token "$VERCEL_TOKEN" > /dev/null 2>&1 || true
+            printf '%s' "$token" | vercel env add D1_GATEWAY_TOKEN production --sensitive --token "$VERCEL_TOKEN"
+            echo "New gateway token set in both places."
+          else
+            echo "Gateway token already set."
+          fi
+
+      - name: Site settings on Vercel
+        run: |
+          set_env() {
+            vercel env rm "$1" production --yes --token "$VERCEL_TOKEN" > /dev/null 2>&1 || true
+            printf '%s' "$2" | vercel env add "$1" production --token "$VERCEL_TOKEN" > /dev/null
+          }
+          set_env D1_GATEWAY_URL "$GATEWAY_URL"
+          # keep DEMO_MODE if you've changed it on Vercel; default to the demo sign-in buttons
+          if ! vercel env ls production --token "$VERCEL_TOKEN" | grep -q DEMO_MODE; then set_env DEMO_MODE 1; fi
+
+      - name: Check the gateway answers
+        run: |
+          for i in $(seq 1 18); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY_URL/health") && [ "$code" = "200" ] && break
+            sleep 10
+          done
+          curl -fsS "$GATEWAY_URL/health"
+
+      - name: Deploy the website
+        run: |
+          url=$(vercel deploy --prod --yes --token "$VERCEL_TOKEN")
+          echo "Deployment: $url"
+          echo "DEPLOY_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Summary
+        run: |
+          prod=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$VERCEL_PROJECT" | jq -r '.targets.production.alias[0] // empty')
+          {
+            echo "## Sparkle is live"
+            echo ""
+            echo "- Website: https://${prod:-${DEPLOY_URL#https://}}"
+            echo "- D1 gateway: $GATEWAY_URL"
+            echo "- Demo sign-ins use the password \`Sparkle@123\` (set DEMO_MODE=0 on Vercel before real customers)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Website: https://${prod:-${DEPLOY_URL#https://}}"

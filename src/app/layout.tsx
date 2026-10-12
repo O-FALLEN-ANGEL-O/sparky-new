@@ -11,7 +11,10 @@ import './globals.css'
 import { Providers } from '@/components/providers'
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:9002'),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ||
+      (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:9002'),
+  ),
   title: { default: 'Sparkle — Fine jewellery from Mangaluru', template: '%s · Sparkle' },
   description: 'Hallmarked gold, certified diamonds and heirloom temple jewellery, handcrafted in Mangaluru and delivered insured across India.',
   icons: { icon: '/favicon.svg' },
