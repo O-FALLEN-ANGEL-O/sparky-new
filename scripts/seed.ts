@@ -3,23 +3,23 @@
  * six months of orders with deliveries, inventory history, tasks, leave,
  * payroll, recruiting and audit data. Deterministic (seeded RNG).
  *
- *   npm run db:seed          (expects an empty, migrated database; see db:reset)
+ *   npm run db:seed            local D1 (run `npm run db:migrate` first; expects no data — see db:reset)
+ *   npm run db:seed:remote     your Cloudflare D1 database
+ *   tsx scripts/seed.ts --sql-only   just write .wrangler/seed.sql
+ *
+ * The data is built in an in-memory SQLite copy of the schema, then loaded with `wrangler d1 execute`.
  */
-import bcrypt from 'bcryptjs'
 import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
 import * as s from '../src/db/schema'
+import { hashPassword } from '../src/lib/password'
 import { orderTotals } from '../src/lib/pricing'
 import { calculatePayslip } from '../src/lib/payroll'
 import { daysInMonthOverlap, workingDays } from '../src/lib/leave'
-import { loadEnv } from './env'
+import { DB_NAME, dumpSql, memoryDb, userCount, wrangler, writeSql } from './d1'
 
-loadEnv()
-const url = process.env.DATABASE_URL
-if (!url) throw new Error('DATABASE_URL is not set')
-const pool = new Pool({ connectionString: url, ssl: /sslmode=require|neon\.tech|supabase\.co/.test(url) ? { rejectUnauthorized: false } : undefined })
-const db = drizzle(pool, { schema: s })
+const target = process.argv.includes('--remote') ? '--remote' : '--local'
+const sqlOnly = process.argv.includes('--sql-only')
+const { raw, db } = memoryDb()
 
 // ------------------------------------------------------------------ rng
 let seed = 20260712
@@ -168,15 +168,17 @@ const CUSTOMER_NAMES = [
 const STREETS = ['MG Road', 'Lady Hill', 'Indiranagar 100ft Rd', 'Bandra West', 'Koregaon Park', 'T Nagar', 'Banjara Hills', 'Panampilly Nagar', 'Hauz Khas', 'C-Scheme', 'Ballygunge', 'Navrangpura', 'Kadri', 'Jayalakshmipuram']
 
 async function main() {
-  const existing = await db.select({ id: s.users.id }).from(s.users).limit(1)
-  if (existing.length) {
-    console.log('Database already has data. Run `npm run db:reset` to start fresh.')
-    await pool.end()
-    return
+  if (!sqlOnly) {
+    const n = userCount(target)
+    if (n === null) throw new Error(`The ${target.slice(2)} database has no tables yet. Run \`npm run db:migrate${target === '--remote' ? ':remote' : ''}\` first.`)
+    if (n > 0) {
+      console.log(`The ${target.slice(2)} database already has data.${target === '--local' ? ' Run `npm run db:reset` to start fresh.' : ''}`)
+      return
+    }
   }
 
-  console.log('Seeding Sparkle…')
-  const hash = await bcrypt.hash(DEMO_PASSWORD, 10)
+  console.log('Building demo data…')
+  const hash = await hashPassword(DEMO_PASSWORD)
 
   // categories + products
   const catRows = await db
@@ -568,12 +570,18 @@ async function main() {
   await db.insert(s.subscribers).values([{ email: 'priya.sharma@example.com' }, { email: 'karthik.subramanian@example.com' }])
 
   console.log(`Seeded ${productRows.length} products, ${staffRows.length} staff, ${customerRows.length} customers, ${orderCount} orders.`)
+  const file = writeSql(dumpSql(raw))
+  if (sqlOnly) {
+    console.log(`Wrote ${file}`)
+    return
+  }
+  console.log(`Loading into the ${target.slice(2)} D1 database…`)
+  wrangler(['execute', DB_NAME, target, '--yes', `--file=${file}`], { capture: true })
+  console.log('Done.')
   console.log(`All demo accounts use the password: ${DEMO_PASSWORD}`)
-  await pool.end()
 }
 
-main().catch(async (e) => {
+main().catch((e) => {
   console.error(e)
-  await pool.end()
   process.exit(1)
 })

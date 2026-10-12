@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, like, inArray, lte, ne, or, sql, type SQL } from 'drizzle-orm'
 import { cache } from 'react'
 import { db, schema } from '@/db'
 
@@ -51,15 +51,16 @@ export async function listProducts(f: ShopFilters = {}) {
   if (f.q?.trim()) {
     const terms = f.q.trim().split(/\s+/).slice(0, 6)
     for (const t of terms) {
-      const like = `%${t.replace(/[%_]/g, '')}%`
+      // SQLite LIKE is case-insensitive for ASCII
+      const pattern = `%${t.replace(/[%_]/g, '')}%`
       where.push(
         or(
-          ilike(schema.products.name, like),
-          ilike(schema.products.description, like),
-          ilike(sql`${schema.products.metal}::text`, like.replace(' ', '_')),
-          ilike(sql`${schema.products.gem}::text`, like),
-          ilike(sql`${schema.products.jewelType}::text`, like.replace(/s%$/, '%')),
-          ilike(schema.products.purity, like),
+          like(schema.products.name, pattern),
+          like(schema.products.description, pattern),
+          like(schema.products.metal, pattern.replace(' ', '_')),
+          like(schema.products.gem, pattern),
+          like(schema.products.jewelType, pattern.replace(/s%$/, '%')),
+          like(schema.products.purity, pattern),
         )!,
       )
     }
@@ -111,7 +112,7 @@ export async function getRelated(product: Product, limit = 4) {
 
 export async function priceBounds() {
   const [r] = await db
-    .select({ min: sql<number>`min(${schema.products.price})::int`, max: sql<number>`max(${schema.products.price})::int` })
+    .select({ min: sql<number>`min(${schema.products.price})`, max: sql<number>`max(${schema.products.price})` })
     .from(schema.products)
     .where(eq(schema.products.active, true))
   return r

@@ -140,13 +140,18 @@ export async function adjustStock(_: ActionState, form: FormData): Promise<Actio
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error.issues) }
   const { productId, change, reason, note } = parsed.data
   try {
-    await db.transaction(async (tx) => {
-      const [p] = await tx.select().from(schema.products).where(eq(schema.products.id, productId)).for('update')
-      if (!p) throw new Error('Product not found.')
-      if (p.stock + change < 0) throw new Error(`Only ${p.stock} in stock — you can’t remove ${Math.abs(change)}.`)
-      await tx.update(schema.products).set({ stock: p.stock + change, updatedAt: new Date() }).where(eq(schema.products.id, productId))
-      await tx.insert(schema.inventoryMovements).values({ productId, change, stockAfter: p.stock + change, reason, note: note || null, userId: user.id })
-    })
+    const [p] = await db.select().from(schema.products).where(eq(schema.products.id, productId))
+    if (!p) throw new Error('Product not found.')
+    if (p.stock + change < 0) throw new Error(`Only ${p.stock} in stock — you can’t remove ${Math.abs(change)}.`)
+    // One D1 batch = one transaction; the stock >= 0 check aborts it if a sale got there first.
+    await db
+      .batch([
+        db.update(schema.products).set({ stock: sql`${schema.products.stock} + ${change}`, updatedAt: new Date() }).where(eq(schema.products.id, productId)),
+        db.insert(schema.inventoryMovements).values({ productId, change, stockAfter: sql`(select stock from products where id = ${productId})`, reason, note: note || null, userId: user.id }),
+      ])
+      .catch((e) => {
+        throw /CHECK constraint/i.test(String(e?.message) + String(e?.cause?.message)) ? new Error('Stock changed while you were editing — not enough left to remove that many. Refresh and try again.') : e
+      })
   } catch (e) {
     return { error: (e as Error).message }
   }
@@ -181,28 +186,32 @@ export async function addStaff(_: ActionState, form: FormData): Promise<ActionSt
   if (exists) return { fieldErrors: { email: 'Someone already uses this email.' } }
   // A temporary password the new hire changes on first sign-in.
   const temp = `Sparkle-${Math.random().toString(36).slice(2, 8)}`
-  const user = await db.transaction(async (tx) => {
-    const [u] = await tx.insert(schema.users).values({ name: d.name, email: d.email, phone: d.phone, role: d.role, passwordHash: await hashPassword(temp) }).returning()
-    const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(schema.employees)
-    await tx.insert(schema.employees).values({
-      userId: u.id,
-      employeeCode: `SPK-E${101 + n}`,
-      department: d.department,
-      title: d.title,
-      managerId: d.managerId === '' || d.managerId == null ? null : d.managerId,
-      joinDate: d.joinDate,
-      monthlySalary: d.monthlySalary,
-      location: d.location || null,
-    })
-    await tx.insert(schema.onboardingTasks).values(
-      ONBOARDING.map((title, i) => {
-        const due = new Date(d.joinDate)
-        due.setDate(due.getDate() + i * 4)
-        return { userId: u.id, title, sort: i, dueDate: due.toISOString().slice(0, 10) }
+  const [user] = await db.insert(schema.users).values({ name: d.name, email: d.email, phone: d.phone, role: d.role, passwordHash: await hashPassword(temp) }).returning()
+  try {
+    const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(schema.employees)
+    await db.batch([
+      db.insert(schema.employees).values({
+        userId: user.id,
+        employeeCode: `SPK-E${101 + n}`,
+        department: d.department,
+        title: d.title,
+        managerId: d.managerId === '' || d.managerId == null ? null : d.managerId,
+        joinDate: d.joinDate,
+        monthlySalary: d.monthlySalary,
+        location: d.location || null,
       }),
-    )
-    return u
-  })
+      db.insert(schema.onboardingTasks).values(
+        ONBOARDING.map((title, i) => {
+          const due = new Date(d.joinDate)
+          due.setDate(due.getDate() + i * 4)
+          return { userId: user.id, title, sort: i, dueDate: due.toISOString().slice(0, 10) }
+        }),
+      ),
+    ])
+  } catch (e) {
+    await db.delete(schema.users).where(eq(schema.users.id, user.id)) // nothing else was written
+    throw e
+  }
   await audit('user.create', { user: me, entity: 'user', entityId: user.id, details: `${d.name} as ${d.role}` })
   revalidatePath('/dashboard/people')
   return { ok: true, message: `${d.name} added. Their temporary password is ${temp} — share it privately; they can change it in Settings.` }

@@ -1,5 +1,5 @@
 import { desc, eq, ne } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/pg-core'
+import { alias } from 'drizzle-orm/sqlite-core'
 import { cancelLeave } from '@/app/actions/people'
 import { ActionButton } from '@/components/dash/action-button'
 import { BarList, Empty, PageHeader, Panel, Pill } from '@/components/dash/ui'

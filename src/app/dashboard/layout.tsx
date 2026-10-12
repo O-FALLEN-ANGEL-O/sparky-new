@@ -26,22 +26,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const badges: Record<string, number> = {}
   if (can(user.role, 'orders.view')) {
-    badges['/dashboard/orders'] = await count(db.select({ n: sql<number>`count(*)::int` }).from(schema.orders).where(eq(schema.orders.status, 'confirmed')))
+    badges['/dashboard/orders'] = await count(db.select({ n: sql<number>`count(*)` }).from(schema.orders).where(eq(schema.orders.status, 'confirmed')))
   }
   if (can(user.role, 'deliveries.manage')) {
     badges['/dashboard/deliveries'] = await count(
-      db.select({ n: sql<number>`count(*)::int` }).from(schema.deliveries).where(eq(schema.deliveries.status, 'pending')),
+      db.select({ n: sql<number>`count(*)` }).from(schema.deliveries).where(eq(schema.deliveries.status, 'pending')),
     )
   }
   if (can(user.role, 'leave.approve')) {
-    badges['/dashboard/leave'] = await count(db.select({ n: sql<number>`count(*)::int` }).from(schema.leaveRequests).where(eq(schema.leaveRequests.status, 'pending')))
+    badges['/dashboard/leave'] = await count(db.select({ n: sql<number>`count(*)` }).from(schema.leaveRequests).where(eq(schema.leaveRequests.status, 'pending')))
   }
   if (can(user.role, 'recruitment.manage')) {
-    badges['/dashboard/recruitment'] = await count(db.select({ n: sql<number>`count(*)::int` }).from(schema.applications).where(eq(schema.applications.status, 'new')))
+    badges['/dashboard/recruitment'] = await count(db.select({ n: sql<number>`count(*)` }).from(schema.applications).where(eq(schema.applications.status, 'new')))
   }
   if (can(user.role, 'tasks.own')) {
     badges['/dashboard/tasks'] = await count(
-      db.select({ n: sql<number>`count(*)::int` }).from(schema.tasks).where(and(eq(schema.tasks.assigneeId, user.id), inArray(schema.tasks.status, ['todo', 'in_progress']))),
+      db.select({ n: sql<number>`count(*)` }).from(schema.tasks).where(and(eq(schema.tasks.assigneeId, user.id), inArray(schema.tasks.status, ['todo', 'in_progress']))),
     )
   }
 

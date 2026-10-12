@@ -6,29 +6,19 @@
  * Existing images are kept unless --force is passed.
  */
 import { mkdir } from 'node:fs/promises'
-import pg from 'pg'
+import { openLocalD1 } from './local-d1.mjs'
 import sharp from 'sharp'
 import { chromium } from 'playwright-core'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 const force = process.argv.includes('--force')
 
-for (const f of ['.env.local', '.env']) {
-  if (!existsSync(f)) continue
-  for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
-  }
-}
 const arg = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split('=')[1]
 const base = arg('base') ?? 'http://localhost:9002'
 const only = arg('only')?.split(',')
 
-const client = new pg.Client({ connectionString: process.env.DATABASE_URL })
-await client.connect()
-const { rows: products } = await client.query(
-  'select p.slug, p.design, p.metal, p.gem, c.slug as category from products p join categories c on c.id = p.category_id order by p.id',
-)
-await client.end()
+const local = openLocalD1()
+const products = await local.q('select p.slug, p.design, p.metal, p.gem, c.slug as category from products p join categories c on c.id = p.category_id order by p.id')
+local.close()
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROME || undefined,

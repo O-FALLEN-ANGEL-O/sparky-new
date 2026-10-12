@@ -55,22 +55,25 @@ offers one-click buttons for each.
 
 ## Run it locally
 
-You need Node 20+ and PostgreSQL 14+.
+You need Node 22.13+. There is no database server to install: the site runs on Cloudflare D1
+(SQLite), and Wrangler keeps a local copy of it in `.wrangler/`.
 
 ```bash
 npm install
-cp .env.example .env.local          # then set DATABASE_URL
-npm run db:migrate                  # create tables
+cp .env.example .env.local
+npm run db:migrate                  # create the tables in the local D1 database
 npm run db:seed                     # catalogue, staff, 6 months of orders, payroll…
 npm run dev                         # http://localhost:9002
 ```
 
-`npm run db:reset` drops everything and re-seeds (refuses to run in production).
+`npm run db:reset` wipes the local database and re-seeds it (it never touches Cloudflare).
+`npm run preview` builds the real Worker and serves it on http://localhost:8787 with the Workers
+runtime, which is the closest thing to production.
 
 ## Tests
 
 ```bash
-npm run test:unit    # GST, payroll tax, leave days, Razorpay signature checks
+npm run test:unit    # GST, payroll tax, leave days, Razorpay signatures, password hashing
 npm run test:e2e     # browser tests against `npm run dev` on a freshly reset database
 ```
 
@@ -79,27 +82,40 @@ checkout, packing and assignment, delivery with a wrong then right handover code
 cancellation restoring stock, the Razorpay webhook (including replay), leave request and approval,
 payroll prepare/process/payslip, adding a staff member and signing in with their temporary password,
 job applications, maintenance mode, restocking and the audit log, plus access-control and
-sign-in lockout checks. It needs `CHROME=/path/to/chrome` if Playwright’s browser isn’t installed, and
-`RAZORPAY_WEBHOOK_SECRET=test_webhook_secret` in `.env.local` for the webhook test.
+sign-in lockout checks. It needs `CHROME=/path/to/chrome` if Playwright’s browser isn’t installed and
+`RAZORPAY_WEBHOOK_SECRET=test_webhook_secret` in `.env.local` for the webhook test. To test the
+built Worker instead, run `npm run preview` and `BASE=http://localhost:8787 npm run test:e2e`.
 
-## Deploy to Vercel
+## Deploy to Cloudflare
 
-1. **Create a Postgres database.** Neon’s free tier works well (Vercel → Storage → Neon also works).
-   Copy the connection string, including `?sslmode=require`.
-2. **Create the tables and data** from your computer, pointing at that database:
+Everything runs on Cloudflare’s free plan: the site is a Worker and the data lives in D1.
+
+1. **Sign in:** `npx wrangler login` (opens your browser).
+2. **Create the database:** `npx wrangler d1 create sparkle`. Copy the `database_id` it prints into
+   `wrangler.jsonc`, replacing the zeros.
+3. **Create the tables and demo data:**
    ```bash
-   DATABASE_URL="postgres://…" npm run db:migrate
-   DATABASE_URL="postgres://…" npm run db:seed     # optional demo data
+   npm run db:migrate:remote
+   npm run db:seed:remote          # optional demo data
    ```
-3. **Import the repo in Vercel** and add environment variables: `DATABASE_URL`, `NEXT_PUBLIC_SITE_URL`
-   (your Vercel URL), and `DEMO_MODE=1` if you want the demo buttons. The defaults for build and output are fine.
-4. **Payments (optional):** add `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` (test keys first). For the
-   webhook, add `https://<your-domain>/api/razorpay/webhook` in Razorpay with `payment.captured` and
-   `order.paid`, and set `RAZORPAY_WEBHOOK_SECRET`.
-5. Before real customers arrive: set `DEMO_MODE=0`, change every demo password (Dashboard → Settings),
-   and switch Razorpay to live keys. Dashboard → System health lists anything still outstanding.
+4. **Set the site address:** in `wrangler.jsonc` under `vars`, set `NEXT_PUBLIC_SITE_URL` to your
+   address (after the first deploy it’s `https://sparkle.<your-subdomain>.workers.dev`), and `DEMO_MODE`
+   to `"1"` if you want the demo buttons on the sign-in page.
+5. **Deploy:** `npm run deploy`. It builds the site and prints its URL. Run it again after each change.
+6. **Payments (optional):** store the Razorpay keys as secrets (test keys first):
+   ```bash
+   npx wrangler secret put RAZORPAY_KEY_ID
+   npx wrangler secret put RAZORPAY_KEY_SECRET
+   npx wrangler secret put RAZORPAY_WEBHOOK_SECRET
+   ```
+   For the webhook, add `https://<your-domain>/api/razorpay/webhook` in Razorpay with
+   `payment.captured` and `order.paid`.
+7. Before real customers arrive: set `DEMO_MODE` to `"0"`, change every demo password (Dashboard →
+   Settings), and switch Razorpay to live keys. Dashboard → System health lists anything still outstanding.
+   A custom domain can be added in the Cloudflare dashboard under Workers → sparkle → Settings → Domains.
 
-After schema changes, run `npm run db:generate` to create a migration, then `npm run db:migrate` against each database.
+After schema changes, run `npm run db:generate` to create a migration, then `npm run db:migrate`
+(local) and `npm run db:migrate:remote` (Cloudflare).
 
 ## Product photos
 
@@ -117,12 +133,15 @@ The studio page that the renderer uses (`/studio`) is switched off in production
 ## How it’s built
 
 - **Next.js 15** (App Router, server components and server actions), **React 19**, TypeScript, Tailwind
-- **PostgreSQL** with **Drizzle ORM**; migrations in `drizzle/`, schema in `src/db/schema.ts`
+- **Cloudflare Workers** via OpenNext, **Cloudflare D1** (SQLite) with **Drizzle ORM**; migrations in
+  `drizzle/`, schema in `src/db/schema.ts`
 - **three.js** via React Three Fiber and drei for every jewel (`src/components/three/`)
-- Sessions are random tokens stored hashed in the database, sent as an HttpOnly cookie; passwords use bcrypt;
+- Sessions are random tokens stored hashed in the database, sent as an HttpOnly cookie; passwords use
+  PBKDF2-SHA256 (Web Crypto, fast enough for Workers’ CPU limits);
   five failed sign-ins lock an email for 15 minutes; every sensitive action is written to the audit log
-- Stock is taken inside a database transaction with row locks, exactly once per order; cancellations
-  return it. Razorpay payments are verified by HMAC signature, and the webhook is idempotent
+- Stock is taken exactly once per order: a conditional update claims the order, then one D1 batch
+  (a single transaction) moves the stock, and a `stock >= 0` check makes an oversell roll the batch back.
+  Cancellations return it. Razorpay payments are verified by HMAC signature, and the webhook is idempotent
 - Recharts for the two time-series charts; everything else is plain HTML so it reads well on any screen
 
 ```
@@ -134,6 +153,6 @@ src/
   components/three/   procedural jewellery, studio lighting, scroll story, viewer
   db/                 Drizzle schema and client
   lib/server/         auth, cart, orders, analytics, people, Razorpay, settings
-scripts/              migrate, seed, reset, render-products
+scripts/              seed, reset, render-products, D1 helpers
 tests/                unit and end-to-end tests
 ```

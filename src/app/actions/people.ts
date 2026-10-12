@@ -4,6 +4,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { db, schema } from '@/db'
+import { chunks } from '@/db/sql'
 import { daysInMonthOverlap, workingDays } from '@/lib/leave'
 import { calculatePayslip } from '@/lib/payroll'
 import { can } from '@/lib/roles'
@@ -150,20 +151,16 @@ export async function preparePayroll(month: string): Promise<Result> {
         const days = unpaid.filter((l) => l.userId === s.id).reduce((n, l) => n + daysInMonthOverlap(l.startDate, l.endDate, month), 0)
         return { userId: s.id, ...calculatePayslip(s.salary, days, daysIn) }
       })
-    await db.transaction(async (tx) => {
-      let runId = existing?.id
-      if (!runId) {
-        const [run] = await tx.insert(schema.payrollRuns).values({ month }).returning()
-        runId = run.id
-      } else {
-        await tx.delete(schema.payslips).where(eq(schema.payslips.runId, runId))
-      }
-      if (slips.length) await tx.insert(schema.payslips).values(slips.map((s) => ({ ...s, runId: runId! })))
-      await tx
+    const runId = existing?.id ?? (await db.insert(schema.payrollRuns).values({ month }).returning())[0].id
+    // replace the draft's payslips and totals in one all-or-nothing batch
+    await db.batch([
+      db.delete(schema.payslips).where(eq(schema.payslips.runId, runId)),
+      ...chunks(schema.payslips, slips.map((s) => ({ ...s, runId }))).map((rows) => db.insert(schema.payslips).values(rows)),
+      db
         .update(schema.payrollRuns)
         .set({ totalGross: slips.reduce((a, b) => a + b.gross, 0), totalNet: slips.reduce((a, b) => a + b.net, 0) })
-        .where(eq(schema.payrollRuns.id, runId))
-    })
+        .where(eq(schema.payrollRuns.id, runId)),
+    ])
     await audit('payroll.prepare', { user: me, details: month })
   } catch (e) {
     return fail(e)

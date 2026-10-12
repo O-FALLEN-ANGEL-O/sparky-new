@@ -1,12 +1,20 @@
 import 'server-only'
 import { and, desc, eq, gte, lt, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/db'
+import { dayOf, istDay, istMonth, jsonField, monthOf } from '@/db/sql'
 
 const o = schema.orders
 /** Orders that count as sales: anything not cancelled and not stuck awaiting payment. */
 const SOLD = and(ne(o.status, 'cancelled'), ne(o.status, 'pending_payment'))
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000)
+
+/** First instant of the month `n` months back, in Indian time. */
+function startOfMonthsAgo(n: number) {
+  const [y, m] = istMonth(Date.now()).split('-').map(Number)
+  const d = new Date(Date.UTC(y, m - 1 - n, 1))
+  return new Date(Date.parse(`${d.toISOString().slice(0, 7)}-01T00:00:00+05:30`))
+}
 
 export async function kpis(days = 30) {
   const now = daysAgo(0)
@@ -15,9 +23,9 @@ export async function kpis(days = 30) {
   const period = async (from: Date, to: Date) => {
     const [r] = await db
       .select({
-        revenue: sql<number>`coalesce(sum(${o.total}), 0)::int`,
-        orders: sql<number>`count(*)::int`,
-        customers: sql<number>`count(distinct ${o.userId})::int`,
+        revenue: sql<number>`coalesce(sum(${o.total}), 0)`,
+        orders: sql<number>`count(*)`,
+        customers: sql<number>`count(distinct ${o.userId})`,
       })
       .from(o)
       .where(and(SOLD, gte(o.createdAt, from), lt(o.createdAt, to)))
@@ -35,12 +43,12 @@ export async function kpis(days = 30) {
 export async function revenueByMonth(months = 6) {
   const rows = await db
     .select({
-      month: sql<string>`to_char(date_trunc('month', ${o.createdAt}), 'YYYY-MM')`,
-      revenue: sql<number>`sum(${o.total})::int`,
-      orders: sql<number>`count(*)::int`,
+      month: monthOf(o.createdAt),
+      revenue: sql<number>`sum(${o.total})`,
+      orders: sql<number>`count(*)`,
     })
     .from(o)
-    .where(and(SOLD, gte(o.createdAt, sql`date_trunc('month', now()) - (${months - 1} || ' months')::interval`)))
+    .where(and(SOLD, gte(o.createdAt, startOfMonthsAgo(months - 1))))
     .groupBy(sql`1`)
     .orderBy(sql`1`)
   return rows
@@ -49,8 +57,8 @@ export async function revenueByMonth(months = 6) {
 export async function revenueByDay(days = 30) {
   const rows = await db
     .select({
-      day: sql<string>`to_char(date_trunc('day', ${o.createdAt}), 'YYYY-MM-DD')`,
-      revenue: sql<number>`sum(${o.total})::int`,
+      day: dayOf(o.createdAt),
+      revenue: sql<number>`sum(${o.total})`,
     })
     .from(o)
     .where(and(SOLD, gte(o.createdAt, daysAgo(days * 2))))
@@ -61,12 +69,12 @@ export async function revenueByDay(days = 30) {
   for (let i = days - 1; i >= 0; i--) {
     const d = daysAgo(i)
     const p = daysAgo(i + days)
-    const key = d.toISOString().slice(0, 10)
+    const key = istDay(d)
     out.push({
       day: key,
       label: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
       current: map.get(key) ?? 0,
-      previous: map.get(p.toISOString().slice(0, 10)) ?? 0,
+      previous: map.get(istDay(p)) ?? 0,
     })
   }
   return out
@@ -76,8 +84,8 @@ export async function revenueByCategory(days = 180) {
   return db
     .select({
       name: schema.categories.name,
-      revenue: sql<number>`sum(${schema.orderItems.price} * ${schema.orderItems.quantity})::int`,
-      units: sql<number>`sum(${schema.orderItems.quantity})::int`,
+      revenue: sql<number>`sum(${schema.orderItems.price} * ${schema.orderItems.quantity})`,
+      units: sql<number>`sum(${schema.orderItems.quantity})`,
     })
     .from(schema.orderItems)
     .innerJoin(o, eq(o.id, schema.orderItems.orderId))
@@ -95,8 +103,8 @@ export async function topProducts(days = 90, limit = 8) {
       name: schema.products.name,
       slug: schema.products.slug,
       stock: schema.products.stock,
-      revenue: sql<number>`sum(${schema.orderItems.price} * ${schema.orderItems.quantity})::int`,
-      units: sql<number>`sum(${schema.orderItems.quantity})::int`,
+      revenue: sql<number>`sum(${schema.orderItems.price} * ${schema.orderItems.quantity})`,
+      units: sql<number>`sum(${schema.orderItems.quantity})`,
     })
     .from(schema.orderItems)
     .innerJoin(o, eq(o.id, schema.orderItems.orderId))
@@ -110,9 +118,9 @@ export async function topProducts(days = 90, limit = 8) {
 export async function salesByCity(days = 180, limit = 10) {
   return db
     .select({
-      city: sql<string>`${o.shippingAddress}->>'city'`,
-      revenue: sql<number>`sum(${o.total})::int`,
-      orders: sql<number>`count(*)::int`,
+      city: jsonField(o.shippingAddress, 'city'),
+      revenue: sql<number>`sum(${o.total})`,
+      orders: sql<number>`count(*)`,
     })
     .from(o)
     .where(and(SOLD, gte(o.createdAt, daysAgo(days))))
@@ -123,14 +131,14 @@ export async function salesByCity(days = 180, limit = 10) {
 
 export async function paymentMix(days = 90) {
   return db
-    .select({ method: o.paymentMethod, orders: sql<number>`count(*)::int`, revenue: sql<number>`sum(${o.total})::int` })
+    .select({ method: o.paymentMethod, orders: sql<number>`count(*)`, revenue: sql<number>`sum(${o.total})` })
     .from(o)
     .where(and(SOLD, gte(o.createdAt, daysAgo(days))))
     .groupBy(o.paymentMethod)
 }
 
 export async function statusCounts() {
-  const rows = await db.select({ status: o.status, n: sql<number>`count(*)::int` }).from(o).groupBy(o.status)
+  const rows = await db.select({ status: o.status, n: sql<number>`count(*)` }).from(o).groupBy(o.status)
   return Object.fromEntries(rows.map((r) => [r.status, r.n])) as Record<string, number>
 }
 
@@ -143,10 +151,9 @@ export async function lowStock() {
 }
 
 export async function customerStats() {
-  const res = await db.execute<{ customers: number; repeat: number }>(sql`
-    select count(*)::int as customers, count(*) filter (where n > 1)::int as repeat
-    from (select user_id, count(*) n from orders where status not in ('cancelled','pending_payment') group by user_id) t`)
-  const r = res.rows[0]
+  const r = (await db.get<{ customers: number; repeat: number }>(sql`
+    select count(*) as customers, coalesce(sum(n > 1), 0) as repeat
+    from (select user_id, count(*) n from orders where status not in ('cancelled','pending_payment') group by user_id) t`))!
   return { customers: r.customers, repeatRate: r.customers ? r.repeat / r.customers : 0 }
 }
 

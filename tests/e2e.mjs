@@ -4,14 +4,15 @@
  *   npm run db:reset && npm run dev     (in another terminal)
  *   CHROME=/path/to/chrome npm run test:e2e
  *
- * Needs RAZORPAY_WEBHOOK_SECRET=test_webhook_secret in .env.local for the webhook test.
+ * Reads and checks the local D1 database directly. Needs RAZORPAY_WEBHOOK_SECRET=test_webhook_secret
+ * in .dev.vars for the webhook test.
  */
 import { createHmac } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
-import pg from 'pg'
 import { chromium } from 'playwright-core'
+import { openLocalD1 } from '../scripts/local-d1.mjs'
 
-for (const f of ['.env.local', '.env']) {
+for (const f of ['.dev.vars', '.env.local', '.env']) {
   if (!existsSync(f)) continue
   for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
@@ -21,9 +22,7 @@ for (const f of ['.env.local', '.env']) {
 
 const BASE = process.env.BASE ?? 'http://localhost:9002'
 const PASSWORD = 'Sparkle@123'
-const db = new pg.Client({ connectionString: process.env.DATABASE_URL })
-await db.connect()
-const q = async (sql, params = []) => (await db.query(sql, params)).rows
+const { q, close } = openLocalD1()
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined })
 let passed = 0
@@ -144,7 +143,7 @@ let orderNumber
   check('stock reduced by 2', after.stock === before.stock - 2, `${before.stock} → ${after.stock}`)
   const [o] = await q('select total, tax, subtotal from orders where number = $1', [orderNumber])
   check('GST is 3%', o.tax === Math.round(o.subtotal * 0.03) && o.total === o.subtotal + o.tax)
-  const [{ n }] = await q('select count(*)::int n from cart_items c join users u on u.id = c.user_id where u.email = $1', [email])
+  const [{ n }] = await q('select count(*) n from cart_items c join users u on u.id = c.user_id where u.email = $1', [email])
   check('bag emptied after ordering', n === 0)
   await ctx.close()
 }
@@ -243,7 +242,7 @@ console.log('\nRazorpay')
     const [stock] = await q('select stock from products where id = $1', [p.id])
     check('signed webhook confirms the order', ok.status === 200 && after.status === 'confirmed' && after.payment_status === 'paid')
     check('replayed webhook takes stock only once', again.status === 200 && stock.stock === p.stock - 1, `${p.stock} → ${stock.stock}`)
-    const [{ n }] = await q('select count(*)::int n from deliveries where order_id = $1', [o.id])
+    const [{ n }] = await q('select count(*) n from deliveries where order_id = $1', [o.id])
     check('paid order gets a delivery', n === 1)
   } else {
     console.log('  skip signed webhook (set RAZORPAY_WEBHOOK_SECRET)')
@@ -278,7 +277,7 @@ console.log('\npeople: leave, tasks, payroll, hiring')
   await page.fill('input[name=title]', 'E2E polish display trays')
   await page.click('button:has-text("Assign")')
   await page.waitForSelector('text=Task assigned')
-  check('manager assigns a task', (await q(`select count(*)::int n from tasks where title = 'E2E polish display trays'`))[0].n === 1)
+  check('manager assigns a task', (await q(`select count(*) n from tasks where title = 'E2E polish display trays'`))[0].n === 1)
   await ctx.close()
 }
 {
@@ -311,7 +310,7 @@ console.log('\npeople: leave, tasks, payroll, hiring')
   await page.click('button:has-text("Add and start onboarding")')
   await page.waitForSelector('text=temporary password')
   const temp = (await page.textContent('main [role=status]')).match(/Sparkle-[a-z0-9]+/)?.[0]
-  const [{ n }] = await q(`select count(*)::int n from onboarding_tasks t join users u on u.id = t.user_id where u.email = $1`, [newEmail])
+  const [{ n }] = await q(`select count(*) n from onboarding_tasks t join users u on u.id = t.user_id where u.email = $1`, [newEmail])
   check('HR adds a person with an onboarding checklist', !!temp && n === 7)
   await ctx.close()
   const hire = await session(newEmail, temp)
@@ -326,7 +325,7 @@ console.log('\npeople: leave, tasks, payroll, hiring')
 }
 {
   const { ctx, page } = await session()
-  const [job] = await q(`select id, slug from jobs where open limit 1`)
+  const [job] = await q(`select id, slug from jobs where open = 1 limit 1`)
   await go(page, `/careers/${job.slug}`)
   await page.fill('input[name=name]', 'E2E Applicant')
   await page.fill('input[name=email]', 'e2e.applicant@example.com')
@@ -334,7 +333,7 @@ console.log('\npeople: leave, tasks, payroll, hiring')
   await page.fill('textarea[name=coverLetter]', 'I have five years of experience and would love to join the Sparkle atelier team in Mangaluru.')
   await page.click('button:has-text("Send application")')
   await page.waitForSelector('text=Our team reads every application')
-  check('public job application lands in recruitment', (await q(`select count(*)::int n from applications where email = 'e2e.applicant@example.com'`))[0].n >= 1)
+  check('public job application lands in recruitment', (await q(`select count(*) n from applications where email = 'e2e.applicant@example.com'`))[0].n >= 1)
   await ctx.close()
 }
 
@@ -364,13 +363,13 @@ console.log('\nowner: maintenance mode and stock')
   await page.waitForSelector('text=Stock updated')
   const [after] = await q('select stock from products where id = $1', [p.id])
   check('owner restocks a piece', after.stock === p.stock + 3)
-  const [{ n }] = await q(`select count(*)::int n from audit_logs where action = 'inventory.adjust' and details like '%E2E workshop batch%'`)
+  const [{ n }] = await q(`select count(*) n from audit_logs where action = 'inventory.adjust' and details like '%E2E workshop batch%'`)
   check('stock change is in the audit log', n === 1)
   await ctx.close()
 }
 
 await browser.close()
-await db.end()
+close()
 console.log(`\n${passed} passed, ${failed.length} failed`)
 if (failed.length) {
   console.log('failed:', failed.join('; '))

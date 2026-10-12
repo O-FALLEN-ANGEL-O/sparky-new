@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, like, or, sql, type SQL } from 'drizzle-orm'
 import { OrderStatusBadge } from '@/components/order-status-badge'
 import { PageHeader } from '@/components/dash/ui'
 import { db, schema } from '@/db'
+import { jsonField } from '@/db/sql'
 import { dateTime } from '@/lib/format'
 import { ORDER_STATUS_LABEL, type OrderStatus } from '@/lib/order-status'
 import { formatINR } from '@/lib/pricing'
@@ -20,12 +21,12 @@ export default async function Orders({ searchParams }: { searchParams: Promise<{
   const where: SQL[] = []
   if (sp.status && sp.status in ORDER_STATUS_LABEL) where.push(eq(schema.orders.status, sp.status as OrderStatus))
   if (sp.q?.trim()) {
-    const like = `%${sp.q.trim()}%`
-    where.push(or(ilike(schema.orders.number, like), ilike(schema.users.name, like), ilike(schema.users.email, like), sql`${schema.orders.shippingAddress}->>'city' ilike ${like}`)!)
+    const pattern = `%${sp.q.trim()}%`
+    where.push(or(like(schema.orders.number, pattern), like(schema.users.name, pattern), like(schema.users.email, pattern), like(jsonField(schema.orders.shippingAddress, 'city'), pattern))!)
   }
   const [rows, counts, [{ total }]] = await Promise.all([
     db
-      .select({ o: schema.orders, name: schema.users.name, items: sql<number>`(select sum(quantity)::int from order_items where order_id = ${schema.orders.id})` })
+      .select({ o: schema.orders, name: schema.users.name, items: sql<number>`(select sum(quantity) from order_items where order_id = ${schema.orders.id})` })
       .from(schema.orders)
       .innerJoin(schema.users, eq(schema.users.id, schema.orders.userId))
       .where(and(...where))
@@ -33,7 +34,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<{
       .limit(PAGE)
       .offset((page - 1) * PAGE),
     statusCounts(),
-    db.select({ total: sql<number>`count(*)::int` }).from(schema.orders).innerJoin(schema.users, eq(schema.users.id, schema.orders.userId)).where(and(...where)),
+    db.select({ total: sql<number>`count(*)` }).from(schema.orders).innerJoin(schema.users, eq(schema.users.id, schema.orders.userId)).where(and(...where)),
   ])
   const pages = Math.max(1, Math.ceil(total / PAGE))
   const link = (patch: Record<string, string | undefined>) => {

@@ -1,12 +1,12 @@
 import 'server-only'
 import { and, asc, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/pg-core'
+import { alias } from 'drizzle-orm/sqlite-core'
 import { db, schema } from '@/db'
 import { LEAVE_ALLOWANCE, type LeaveType } from '@/lib/leave'
 
 export async function leaveBalance(userId: number, year = new Date().getFullYear()) {
   const rows = await db
-    .select({ type: schema.leaveRequests.type, days: sql<number>`sum(${schema.leaveRequests.days})::int` })
+    .select({ type: schema.leaveRequests.type, days: sql<number>`sum(${schema.leaveRequests.days})` })
     .from(schema.leaveRequests)
     .where(
       and(
@@ -108,7 +108,7 @@ export async function deliveryAgents() {
 
 export async function agentLoad() {
   const rows = await db
-    .select({ agentId: schema.deliveries.agentId, n: sql<number>`count(*)::int` })
+    .select({ agentId: schema.deliveries.agentId, n: sql<number>`count(*)` })
     .from(schema.deliveries)
     .where(inArray(schema.deliveries.status, ['assigned', 'accepted', 'out_for_delivery']))
     .groupBy(schema.deliveries.agentId)

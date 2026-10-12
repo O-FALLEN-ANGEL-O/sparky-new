@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sparkle",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // esbuild's keep_names wraps functions in __name(), which breaks scripts Next serialises into the page
+  "keep_names": false,
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sparkle",
+      // Replace with the id printed by `npx wrangler d1 create sparkle`.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://sparkle.example.workers.dev",
+    "DEMO_MODE": "1"
+  }
+}

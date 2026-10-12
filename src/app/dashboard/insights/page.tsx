@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { and, eq, gte, lt, sql } from 'drizzle-orm'
 import { Empty, PageHeader, Pill } from '@/components/dash/ui'
 import { db, schema } from '@/db'
+import { msAgo } from '@/db/sql'
 import { pct } from '@/lib/format'
 import { formatCompactINR, formatINR } from '@/lib/pricing'
 import { requireUser } from '@/lib/server/auth'
@@ -19,11 +20,11 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000)
  */
 async function buildInsights(): Promise<Insight[]> {
   const out: Insight[] = []
-  const sold30 = await db.execute<{ id: number; name: string; stock: number; units: number }>(sql`
-    select p.id, p.name, p.stock, coalesce(sum(oi.quantity) filter (where o.created_at >= now() - interval '30 days' and o.status not in ('cancelled','pending_payment')), 0)::int as units
+  const sold30 = await db.all<{ id: number; name: string; stock: number; units: number }>(sql`
+    select p.id, p.name, p.stock, coalesce(sum(oi.quantity) filter (where o.created_at >= ${msAgo(30)} and o.status not in ('cancelled','pending_payment')), 0) as units
     from products p left join order_items oi on oi.product_id = p.id left join orders o on o.id = oi.order_id
     where p.active group by p.id`)
-  for (const p of sold30.rows) {
+  for (const p of sold30) {
     if (p.units === 0) continue
     const cover = Math.floor(p.stock / (p.units / 30))
     if (cover < 21) {
@@ -51,11 +52,11 @@ async function buildInsights(): Promise<Insight[]> {
       cta: 'Review products',
     })
   }
-  const [cur, prev] = await Promise.all([revenueByCategory(30), db.execute<{ name: string; revenue: number }>(sql`
-    select c.name, sum(oi.price * oi.quantity)::int as revenue from order_items oi join orders o on o.id = oi.order_id
+  const [cur, prev] = await Promise.all([revenueByCategory(30), db.all<{ name: string; revenue: number }>(sql`
+    select c.name, sum(oi.price * oi.quantity) as revenue from order_items oi join orders o on o.id = oi.order_id
     join products p on p.id = oi.product_id join categories c on c.id = p.category_id
-    where o.status not in ('cancelled','pending_payment') and o.created_at >= now() - interval '60 days' and o.created_at < now() - interval '30 days' group by c.name`)])
-  const prevMap = new Map(prev.rows.map((r) => [r.name, r.revenue]))
+    where o.status not in ('cancelled','pending_payment') and o.created_at >= ${msAgo(60)} and o.created_at < ${msAgo(30)} group by c.name`)])
+  const prevMap = new Map(prev.map((r) => [r.name, r.revenue]))
   const movers = cur
     .map((c) => ({ ...c, before: prevMap.get(c.name) ?? 0 }))
     .filter((c) => c.before > 0)
@@ -74,7 +75,7 @@ async function buildInsights(): Promise<Insight[]> {
     })
   }
   const stuck = await db
-    .select({ n: sql<number>`count(*)::int`, value: sql<number>`coalesce(sum(${schema.orders.total}),0)::int` })
+    .select({ n: sql<number>`count(*)`, value: sql<number>`coalesce(sum(${schema.orders.total}),0)` })
     .from(schema.orders)
     .where(and(eq(schema.orders.status, 'pending_payment'), lt(schema.orders.createdAt, daysAgo(0.04))))
   if (stuck[0].n) {
@@ -89,7 +90,7 @@ async function buildInsights(): Promise<Insight[]> {
     })
   }
   const [c90] = await db
-    .select({ all: sql<number>`count(*)::int`, cancelled: sql<number>`count(*) filter (where ${schema.orders.status} = 'cancelled')::int` })
+    .select({ all: sql<number>`count(*)`, cancelled: sql<number>`count(*) filter (where ${schema.orders.status} = 'cancelled')` })
     .from(schema.orders)
     .where(gte(schema.orders.createdAt, daysAgo(90)))
   if (c90.all > 10) {

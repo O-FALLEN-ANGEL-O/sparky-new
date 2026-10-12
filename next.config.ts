@@ -11,7 +11,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   devIndicators: false,
   images: {
-    formats: ['image/avif', 'image/webp'],
+    // Product photos are already optimised WebP; Workers serve them straight from static assets.
+    unoptimized: true,
   },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
@@ -22,3 +23,7 @@ const nextConfig: NextConfig = {
 }
 
 export default nextConfig
+
+// Gives `next dev` the same bindings (D1, vars) the Worker gets on Cloudflare.
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare'
+initOpenNextCloudflareForDev()

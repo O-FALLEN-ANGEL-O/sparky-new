@@ -1,5 +1,5 @@
 import { desc, eq, or } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/pg-core'
+import { alias } from 'drizzle-orm/sqlite-core'
 import { deleteTask } from '@/app/actions/people'
 import { ActionButton } from '@/components/dash/action-button'
 import { Empty, PageHeader, Panel, Pill } from '@/components/dash/ui'

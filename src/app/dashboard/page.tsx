@@ -76,7 +76,7 @@ async function AttentionPanel() {
     db.select({ n: count() }).from(schema.deliveries).where(eq(schema.deliveries.status, 'pending')),
     db.select({ n: count() }).from(schema.orders).where(eq(schema.orders.status, 'confirmed')),
     lowStock(),
-    db.select({ n: count() }).from(schema.auditLogs).where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), gte(schema.auditLogs.createdAt, sql`now() - interval '24 hours'`))),
+    db.select({ n: count() }).from(schema.auditLogs).where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), gte(schema.auditLogs.createdAt, new Date(Date.now() - 86_400_000)))),
     db.select({ n: count() }).from(schema.leaveRequests).where(eq(schema.leaveRequests.status, 'pending')),
   ])
   const items = [
@@ -214,7 +214,7 @@ async function HR({ title }: { title: string }) {
     db.select({ status: schema.applications.status, n: count() }).from(schema.applications).groupBy(schema.applications.status),
     db.select().from(schema.payrollRuns).orderBy(desc(schema.payrollRuns.month)).limit(1),
     db
-      .select({ name: schema.users.name, done: sql<number>`count(*) filter (where ${schema.onboardingTasks.done})::int`, total: count() })
+      .select({ name: schema.users.name, done: sql<number>`count(*) filter (where ${schema.onboardingTasks.done})`, total: count() })
       .from(schema.onboardingTasks)
       .innerJoin(schema.users, eq(schema.users.id, schema.onboardingTasks.userId))
       .groupBy(schema.users.name),

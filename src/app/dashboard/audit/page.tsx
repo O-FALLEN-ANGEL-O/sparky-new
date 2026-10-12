@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, like, or, sql, type SQL } from 'drizzle-orm'
 import { PageHeader, Pill } from '@/components/dash/ui'
 import { db, schema } from '@/db'
 import { dateTime } from '@/lib/format'
@@ -13,14 +13,14 @@ export default async function Audit({ searchParams }: { searchParams: Promise<{ 
   const sp = await searchParams
   const page = Math.max(1, Number(sp.page) || 1)
   const where: SQL[] = []
-  if (sp.area) where.push(ilike(schema.auditLogs.action, `${sp.area.replace(/[%_]/g, '')}.%`))
+  if (sp.area) where.push(like(schema.auditLogs.action, `${sp.area.replace(/[%_]/g, '')}.%`))
   if (sp.q?.trim()) {
-    const like = `%${sp.q.trim()}%`
-    where.push(or(ilike(schema.auditLogs.actorEmail, like), ilike(schema.auditLogs.details, like), ilike(schema.auditLogs.entityId, like), ilike(schema.auditLogs.ip, like))!)
+    const pattern = `%${sp.q.trim()}%`
+    where.push(or(like(schema.auditLogs.actorEmail, pattern), like(schema.auditLogs.details, pattern), like(schema.auditLogs.entityId, pattern), like(schema.auditLogs.ip, pattern))!)
   }
   const [rows, areas] = await Promise.all([
     db.select().from(schema.auditLogs).where(and(...where)).orderBy(desc(schema.auditLogs.createdAt), desc(schema.auditLogs.id)).limit(PAGE + 1).offset((page - 1) * PAGE),
-    db.select({ a: sql<string>`split_part(${schema.auditLogs.action}, '.', 1)`, n: sql<number>`count(*)::int` }).from(schema.auditLogs).groupBy(sql`1`).orderBy(sql`1`),
+    db.select({ a: sql<string>`substr(${schema.auditLogs.action}, 1, instr(${schema.auditLogs.action}, '.') - 1)`, n: sql<number>`count(*)` }).from(schema.auditLogs).groupBy(sql`1`).orderBy(sql`1`),
   ])
   const more = rows.length > PAGE
   const link = (patch: Record<string, string | undefined>) => {

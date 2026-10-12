@@ -16,7 +16,7 @@ export default async function Recruitment() {
   await requireUser({ permission: 'recruitment.manage' })
   const [jobs, apps] = await Promise.all([
     db
-      .select({ j: schema.jobs, n: sql<number>`(select count(*)::int from applications a where a.job_id = ${schema.jobs.id})` })
+      .select({ j: schema.jobs, n: sql<number>`(select count(*) from applications a where a.job_id = ${schema.jobs.id})` })
       .from(schema.jobs)
       .orderBy(desc(schema.jobs.open), desc(schema.jobs.createdAt)),
     db.select({ a: schema.applications, job: schema.jobs.title }).from(schema.applications).innerJoin(schema.jobs, eq(schema.jobs.id, schema.applications.jobId)).orderBy(desc(schema.applications.createdAt)),

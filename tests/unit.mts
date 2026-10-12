@@ -46,5 +46,14 @@ const body = '{"a":1}'
 eq('valid webhook accepted', verifyWebhookSignature(body, createHmac('sha256', 'wh').update(body).digest('hex'), 'wh'), true)
 eq('webhook without secret rejected', verifyWebhookSignature(body, createHmac('sha256', 'wh').update(body).digest('hex'), ''), false)
 
+console.log('passwords (PBKDF2)')
+const { hashPassword, verifyPassword } = await import('../src/lib/password')
+const h1 = await hashPassword('Sparkle@123')
+eq('hash has scheme, iterations, salt and digest', h1.split('$').length === 4 && h1.startsWith('pbkdf2$100000$'), true)
+eq('right password verifies', await verifyPassword('Sparkle@123', h1), true)
+eq('wrong password refused', await verifyPassword('sparkle@123', h1), false)
+eq('same password gets a fresh salt', (await hashPassword('Sparkle@123')) === h1, false)
+eq('unknown hash format refused', await verifyPassword('x', '$2b$10$abcdefghijklmnopqrstuv'), false)
+
 console.log(failed ? `\n${failed} failed` : '\nall passed')
 process.exit(failed ? 1 : 0)

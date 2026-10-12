@@ -8,12 +8,12 @@ import { requireUser } from '@/lib/server/auth'
 export default async function MyDeliveries() {
   const me = await requireUser({ permission: 'deliveries.run' })
   const base = () => db
-    .select({ d: schema.deliveries, o: schema.orders, items: sql<number>`(select sum(quantity)::int from order_items where order_id = ${schema.orders.id})` })
+    .select({ d: schema.deliveries, o: schema.orders, items: sql<number>`(select sum(quantity) from order_items where order_id = ${schema.orders.id})` })
     .from(schema.deliveries)
     .innerJoin(schema.orders, eq(schema.orders.id, schema.deliveries.orderId))
   const [open, done] = await Promise.all([
     base().where(and(eq(schema.deliveries.agentId, me.id), inArray(schema.deliveries.status, ['assigned', 'accepted', 'out_for_delivery']))).orderBy(sql`case ${schema.deliveries.status} when 'out_for_delivery' then 0 when 'accepted' then 1 else 2 end`, schema.deliveries.assignedAt),
-    base().where(and(eq(schema.deliveries.agentId, me.id), eq(schema.deliveries.status, 'delivered'), gte(schema.deliveries.deliveredAt, sql`now() - interval '7 days'`))).orderBy(desc(schema.deliveries.deliveredAt)),
+    base().where(and(eq(schema.deliveries.agentId, me.id), eq(schema.deliveries.status, 'delivered'), gte(schema.deliveries.deliveredAt, new Date(Date.now() - 7 * 86_400_000)))).orderBy(desc(schema.deliveries.deliveredAt)),
   ])
   const cash = open.filter((r) => r.o.paymentMethod === 'cod').reduce((s, r) => s + r.o.total, 0)
   return (

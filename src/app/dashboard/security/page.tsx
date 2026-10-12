@@ -20,7 +20,7 @@ function device(ua: string | null) {
 export default async function Security() {
   await requireUser({ permission: 'security.view' })
   const mine = currentSessionId((await cookies()).get(SESSION_COOKIE)?.value)
-  const day = sql`now() - interval '24 hours'`
+  const day = new Date(Date.now() - 86_400_000)
   const [sessions, failed, byEmail, [fail24], [ok24]] = await Promise.all([
     db
       .select({ s: schema.sessions, name: schema.users.name, email: schema.users.email, role: schema.users.role })
@@ -30,13 +30,13 @@ export default async function Security() {
       .orderBy(desc(schema.sessions.lastSeenAt)),
     db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false))).orderBy(desc(schema.auditLogs.createdAt)).limit(20),
     db
-      .select({ email: schema.auditLogs.actorEmail, n: sql<number>`count(*)::int`, ips: sql<number>`count(distinct ${schema.auditLogs.ip})::int`, last: sql<Date>`max(${schema.auditLogs.createdAt})` })
+      .select({ email: schema.auditLogs.actorEmail, n: sql<number>`count(*)`, ips: sql<number>`count(distinct ${schema.auditLogs.ip})`, last: sql<Date>`max(${schema.auditLogs.createdAt})` })
       .from(schema.auditLogs)
-      .where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), gte(schema.auditLogs.createdAt, sql`now() - interval '7 days'`)))
+      .where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), gte(schema.auditLogs.createdAt, new Date(Date.now() - 7 * 86_400_000))))
       .groupBy(schema.auditLogs.actorEmail)
       .orderBy(desc(sql`2`)),
-    db.select({ n: sql<number>`count(*)::int` }).from(schema.auditLogs).where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), gte(schema.auditLogs.createdAt, day))),
-    db.select({ n: sql<number>`count(*)::int` }).from(schema.auditLogs).where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, true), gte(schema.auditLogs.createdAt, day))),
+    db.select({ n: sql<number>`count(*)` }).from(schema.auditLogs).where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), gte(schema.auditLogs.createdAt, day))),
+    db.select({ n: sql<number>`count(*)` }).from(schema.auditLogs).where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, true), gte(schema.auditLogs.createdAt, day))),
   ])
   return (
     <div className="space-y-6">

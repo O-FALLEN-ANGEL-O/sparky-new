@@ -1,24 +1,24 @@
 /**
- * Sparkle database schema (PostgreSQL, Drizzle ORM).
+ * Sparkle database schema (Cloudflare D1 / SQLite, Drizzle ORM).
  * Money is stored as whole rupees (integers). Razorpay amounts are rupees × 100.
+ * Timestamps are stored as epoch milliseconds; calendar dates as 'YYYY-MM-DD' text.
  */
 import { relations, sql } from 'drizzle-orm';
-import {
-  boolean,
-  date,
-  index,
-  integer,
-  jsonb,
-  pgEnum,
-  pgTable,
-  primaryKey,
-  real,
-  serial,
-  text,
-  timestamp,
-  uniqueIndex,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { check, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+
+/** Enum stand-in: SQLite has no enum type, so values are checked by TypeScript and in actions. */
+function pgEnum<const T extends readonly [string, ...string[]]>(name: string, values: T) {
+  const col = (column: string) => text(column, { enum: values as unknown as [T[number], ...T[number][]] });
+  return Object.assign(col, { enumValues: values, enumName: name });
+}
+const serial = (name: string) => integer(name, { mode: 'number' }).primaryKey({ autoIncrement: true });
+const boolean = (name: string) => integer(name, { mode: 'boolean' });
+const timestamp = (name: string, _opts?: { withTimezone?: boolean }) => integer(name, { mode: 'timestamp_ms' });
+const date = (name: string) => text(name);
+const varchar = (name: string, _opts?: { length?: number }) => text(name);
+const jsonb = (name: string) => text(name, { mode: 'json' });
+const pgTable = sqliteTable;
+const now = sql`(unixepoch('subsec') * 1000)`;
 
 // ------------------------------------------------------------------ enums
 
@@ -31,10 +31,10 @@ export const roleEnum = pgEnum('role', [
   'employee',
   'shareholder',
   'delivery_agent',
-]);
-export const jewelTypeEnum = pgEnum('jewel_type', ['ring', 'necklace', 'earrings', 'bracelet', 'bangle', 'pendant']);
-export const metalEnum = pgEnum('metal', ['yellow_gold', 'rose_gold', 'white_gold', 'platinum', 'silver']);
-export const gemEnum = pgEnum('gem', ['diamond', 'emerald', 'ruby', 'sapphire', 'pearl', 'none']);
+] as const);
+export const jewelTypeEnum = pgEnum('jewel_type', ['ring', 'necklace', 'earrings', 'bracelet', 'bangle', 'pendant'] as const);
+export const metalEnum = pgEnum('metal', ['yellow_gold', 'rose_gold', 'white_gold', 'platinum', 'silver'] as const);
+export const gemEnum = pgEnum('gem', ['diamond', 'emerald', 'ruby', 'sapphire', 'pearl', 'none'] as const);
 /** The shape the 3D engine builds for a product (see src/components/three/designs.ts). */
 export const designEnum = pgEnum('design', [
   'solitaire', 'cocktail', 'halo', 'band', 'eternity',
@@ -43,7 +43,7 @@ export const designEnum = pgEnum('design', [
   'chandbali', 'stud', 'jhumka', 'drop_earring',
   'tennis', 'link', 'charm',
   'kangan', 'kada', 'studded_bangle', 'oxidised_bangle',
-]);
+] as const);
 export const orderStatusEnum = pgEnum('order_status', [
   'pending_payment',
   'confirmed',
@@ -51,9 +51,9 @@ export const orderStatusEnum = pgEnum('order_status', [
   'out_for_delivery',
   'delivered',
   'cancelled',
-]);
-export const paymentMethodEnum = pgEnum('payment_method', ['cod', 'razorpay']);
-export const paymentStatusEnum = pgEnum('payment_status', ['pending', 'paid', 'failed', 'refunded']);
+] as const);
+export const paymentMethodEnum = pgEnum('payment_method', ['cod', 'razorpay'] as const);
+export const paymentStatusEnum = pgEnum('payment_status', ['pending', 'paid', 'failed', 'refunded'] as const);
 export const deliveryStatusEnum = pgEnum('delivery_status', [
   'pending',
   'assigned',
@@ -61,13 +61,13 @@ export const deliveryStatusEnum = pgEnum('delivery_status', [
   'out_for_delivery',
   'delivered',
   'failed',
-]);
-export const stockReasonEnum = pgEnum('stock_reason', ['sale', 'restock', 'adjustment', 'return', 'cancellation']);
-export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'done']);
-export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
-export const leaveTypeEnum = pgEnum('leave_type', ['casual', 'sick', 'earned', 'unpaid']);
-export const leaveStatusEnum = pgEnum('leave_status', ['pending', 'approved', 'rejected', 'cancelled']);
-export const jobTypeEnum = pgEnum('job_type', ['full_time', 'part_time', 'contract', 'internship']);
+] as const);
+export const stockReasonEnum = pgEnum('stock_reason', ['sale', 'restock', 'adjustment', 'return', 'cancellation'] as const);
+export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'done'] as const);
+export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high'] as const);
+export const leaveTypeEnum = pgEnum('leave_type', ['casual', 'sick', 'earned', 'unpaid'] as const);
+export const leaveStatusEnum = pgEnum('leave_status', ['pending', 'approved', 'rejected', 'cancelled'] as const);
+export const jobTypeEnum = pgEnum('job_type', ['full_time', 'part_time', 'contract', 'internship'] as const);
 export const applicationStatusEnum = pgEnum('application_status', [
   'new',
   'reviewing',
@@ -75,11 +75,11 @@ export const applicationStatusEnum = pgEnum('application_status', [
   'offer',
   'hired',
   'rejected',
-]);
-export const payrollStatusEnum = pgEnum('payroll_status', ['draft', 'processed']);
+] as const);
+export const payrollStatusEnum = pgEnum('payroll_status', ['draft', 'processed'] as const);
 
-const created = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
-const updated = () => timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
+const created = () => timestamp('created_at').notNull().default(now);
+const updated = () => timestamp('updated_at').notNull().default(now);
 
 // ------------------------------------------------------------- identity
 
@@ -97,7 +97,7 @@ export const users = pgTable(
     lastLoginIp: varchar('last_login_ip', { length: 64 }),
     createdAt: created(),
   },
-  (t) => [uniqueIndex('users_email_idx').on(sql`lower(${t.email})`)],
+  (t) => [uniqueIndex('users_email_idx').on(t.email)],
 );
 
 export const sessions = pgTable(
@@ -111,7 +111,7 @@ export const sessions = pgTable(
     ip: varchar('ip', { length: 64 }),
     userAgent: text('user_agent'),
     createdAt: created(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().default(now),
   },
   (t) => [index('sessions_user_idx').on(t.userId)],
 );
@@ -186,7 +186,8 @@ export const products = pgTable(
     createdAt: created(),
     updatedAt: updated(),
   },
-  (t) => [index('products_category_idx').on(t.categoryId)],
+  // The CHECK makes an oversell fail the whole D1 batch, which is how stock stays correct without row locks
+  (t) => [index('products_category_idx').on(t.categoryId), check('products_stock_nonnegative', sql`${t.stock} >= 0`)],
 );
 
 export const inventoryMovements = pgTable(

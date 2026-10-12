@@ -1,24 +1,35 @@
 import 'server-only'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1'
 import * as schema from './schema'
 
-const connectionString = process.env.DATABASE_URL
-if (!connectionString && process.env.NEXT_PHASE !== 'phase-production-build') {
-  console.warn('DATABASE_URL is not set. Copy .env.example to .env.local and fill it in.')
+export type DB = DrizzleD1Database<typeof schema>
+
+const cache = new WeakMap<D1Database, DB>()
+
+/** The D1 database bound as `DB` in wrangler.jsonc (local D1 in `next dev`, real D1 on Cloudflare). */
+export function getDb(): DB {
+  const { env } = getCloudflareContext()
+  const binding = (env as { DB?: D1Database }).DB
+  if (!binding) throw new Error('No D1 binding named DB. Check wrangler.jsonc.')
+  let db = cache.get(binding)
+  if (!db) {
+    db = drizzle(binding, { schema })
+    cache.set(binding, db)
+  }
+  return db
 }
 
-// Reuse one pool across hot reloads in development and across invocations on Vercel.
-const globalForDb = globalThis as unknown as { sparklePool?: Pool }
-const pool =
-  globalForDb.sparklePool ??
-  new Pool({
-    connectionString,
-    max: process.env.VERCEL ? 3 : 10,
-    ssl: connectionString && /sslmode=require|neon\.tech|supabase\.co/.test(connectionString) ? { rejectUnauthorized: false } : undefined,
-  })
-globalForDb.sparklePool = pool
+/**
+ * `db` reads like a normal client but resolves the binding on each use, because
+ * Cloudflare only exposes bindings inside a request.
+ */
+export const db = new Proxy({} as DB, {
+  get(_, prop) {
+    const real = getDb() as unknown as Record<PropertyKey, unknown>
+    const value = real[prop]
+    return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(real) : value
+  },
+})
 
-export const db = drizzle(pool, { schema })
-export type DB = typeof db
 export { schema }

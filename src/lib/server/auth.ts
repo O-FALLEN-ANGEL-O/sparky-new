@@ -1,6 +1,5 @@
 import 'server-only'
 import { createHash, randomBytes } from 'node:crypto'
-import bcrypt from 'bcryptjs'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -23,8 +22,7 @@ export type CurrentUser = {
   role: Role
 }
 
-export const hashPassword = (password: string) => bcrypt.hash(password, 10)
-export const verifyPassword = (password: string, hash: string) => bcrypt.compare(password, hash)
+export { hashPassword, verifyPassword } from '@/lib/password'
 
 /** The signed-in user for this request, or null. Cached per request. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
@@ -85,11 +83,11 @@ export async function loginBlocked(email: string): Promise<boolean> {
   const { ip } = await requestMeta()
   const since = new Date(Date.now() - 15 * 60_000)
   const [byEmail] = await db
-    .select({ n: sql<number>`count(*)::int` })
+    .select({ n: sql<number>`count(*)` })
     .from(schema.auditLogs)
     .where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), sql`lower(${schema.auditLogs.actorEmail}) = lower(${email})`, gt(schema.auditLogs.createdAt, since)))
   const [byIp] = await db
-    .select({ n: sql<number>`count(*)::int` })
+    .select({ n: sql<number>`count(*)` })
     .from(schema.auditLogs)
     .where(and(eq(schema.auditLogs.action, 'auth.login'), eq(schema.auditLogs.success, false), eq(schema.auditLogs.ip, ip), gt(schema.auditLogs.createdAt, since)))
   return byEmail.n >= 5 || byIp.n >= 20
