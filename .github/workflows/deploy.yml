@@ -21,6 +21,7 @@ concurrency:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
   deploy:
@@ -143,3 +144,11 @@ jobs:
             echo "- Demo sign-ins use the password \`Sparkle@123\` (set DEMO_MODE=0 on Vercel before real customers)"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Website: https://${prod:-${DEPLOY_URL#https://}}"
+
+      - name: Link the live site on the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prod=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$VERCEL_PROJECT" | jq -r '.targets.production.alias[0] // empty')
+          gh api "repos/${{ github.repository }}/statuses/${{ github.sha }}" -f state=success -f context="Sparkle live site" \
+            -f description="Deployed to Vercel" -f target_url="https://${prod:-${DEPLOY_URL#https://}}" > /dev/null
