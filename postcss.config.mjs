@@ -1,11 +1,8 @@
-/** @type {import('postcss-load-config').Config} */
+/** Next.js minifies CSS itself in production builds. */
 const config = {
   plugins: {
     tailwindcss: {},
-    cssnano: {
-      preset: 'default',
-    },
   },
-};
+}
 
-export default config;
+export default config

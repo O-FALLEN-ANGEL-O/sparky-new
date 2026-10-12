@@ -1,36 +1,35 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import { Providers } from '@/components/providers';
+import type { Metadata, Viewport } from 'next'
+import '@fontsource/cormorant-garamond/400.css'
+import '@fontsource/cormorant-garamond/500.css'
+import '@fontsource/cormorant-garamond/600.css'
+import '@fontsource/cormorant-garamond/500-italic.css'
+import '@fontsource/jost/300.css'
+import '@fontsource/jost/400.css'
+import '@fontsource/jost/500.css'
+import '@fontsource/jost/600.css'
+import './globals.css'
+import { Providers } from '@/components/providers'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://sparkle.com'),
-  title: 'Sparkle - Exquisite Indian Jewellery',
-  description:
-    'Discover authentic, handcrafted Indian jewellery. Timeless designs in gold, diamond, and precious gemstones from Sparkle.',
-};
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:9002'),
+  title: { default: 'Sparkle — Fine jewellery from Mangaluru', template: '%s · Sparkle' },
+  description: 'Hallmarked gold, certified diamonds and heirloom temple jewellery, handcrafted in Mangaluru and delivered insured across India.',
+  icons: { icon: '/favicon.svg' },
+}
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fcfbf8' },
+    { media: '(prefers-color-scheme: dark)', color: '#15110e' },
+  ],
+}
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;700&family=Poppins:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="font-body antialiased min-h-screen" suppressHydrationWarning>
+    <html lang="en-IN" suppressHydrationWarning>
+      <body className="min-h-dvh">
         <Providers>{children}</Providers>
       </body>
     </html>
-  );
+  )
 }

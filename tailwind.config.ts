@@ -3,8 +3,7 @@ import type {Config} from 'tailwindcss';
 export default {
   darkMode: ['class'],
   content: [
-    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+        './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
@@ -17,9 +16,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ['"Poppins"', 'sans-serif'],
-        headline: ['"Cormorant Garamond"', 'serif'],
-        code: ['monospace'],
+        body: ['"Jost"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        headline: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+        code: ['ui-monospace', 'monospace'],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -52,6 +51,12 @@ export default {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
         },
+        gold: 'hsl(var(--gold))',
+        gilt: 'hsl(var(--gilt))',
+        velvet: 'hsl(var(--velvet))',
+        ink: 'hsl(var(--ink))',
+        kumkum: 'hsl(var(--kumkum))',
+        ok: 'hsl(var(--ok))',
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

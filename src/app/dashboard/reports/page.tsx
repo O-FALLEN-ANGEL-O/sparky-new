@@ -1,54 +1,42 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Download, FileText, BarChart2 } from 'lucide-react';
+import { PageHeader } from '@/components/dash/ui'
+import { Button } from '@/components/ui/button'
+import { can } from '@/lib/roles'
+import { requireUser } from '@/lib/server/auth'
 
-const reports = [
-    { title: "Q2 2024 Financial Summary", icon: FileText, description: "Complete breakdown of revenue, profit, and expenses." },
-    { title: "2024 Sales Performance", icon: BarChart2, description: "Product and store-level sales data." },
-    { title: "Annual Inventory Report", icon: FileText, description: "Stock levels, turnover rates, and valuation." }
+export const metadata = { title: 'Reports' }
+
+const REPORTS = [
+  { type: 'orders', title: 'Orders', body: 'Every order with customer, city, status, payment and totals.', range: true },
+  { type: 'sales-by-product', title: 'Sales by piece', body: 'Units and revenue for each piece, best sellers first.', range: true },
+  { type: 'monthly-summary', title: 'Monthly summary', body: 'Orders, revenue, average order and buying customers per month.', range: true },
+  { type: 'inventory', title: 'Inventory snapshot', body: 'Current stock, reorder levels and stock value at retail.', range: false },
+  { type: 'payroll', title: 'Payroll register', body: 'Every payslip with earnings and deductions. HR and owner only.', range: true, permission: 'payroll.manage' as const },
 ]
 
-export default function ReportsPage() {
+export default async function Reports() {
+  const user = await requireUser({ permission: 'reports.view' })
+  const today = new Date().toISOString().slice(0, 10)
+  const start = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10)
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Download className="h-8 w-8" />
-        <div>
-          <h1 className="text-3xl font-bold">Downloadable Reports</h1>
-          <p className="text-muted-foreground">Access and download comprehensive business reports.</p>
-        </div>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Available Reports</CardTitle>
-          <CardDescription>
-            Download reports in PDF or Excel format.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {reports.map(report => (
-            <div key={report.title} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-4">
-                    <report.icon className="h-6 w-6 text-primary"/>
-                    <div>
-                        <h3 className="font-semibold">{report.title}</h3>
-                        <p className="text-sm text-muted-foreground">{report.description}</p>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        PDF
-                    </Button>
-                    <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Excel
-                    </Button>
-                </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+    <div>
+      <PageHeader title="Reports" description="Download as CSV. Opens in Excel, Google Sheets or Numbers; amounts are in rupees." />
+      <ul className="grid gap-4 lg:grid-cols-2">
+        {REPORTS.filter((r) => !r.permission || can(user.role, r.permission)).map((r) => (
+          <li key={r.type} className="rounded-lg border bg-card p-5">
+            <h2 className="font-headline text-2xl">{r.title}</h2>
+            <p className="mt-1 text-[15px] text-muted-foreground">{r.body}</p>
+            <form action={`/dashboard/reports/download/${r.type}`} method="get" className="mt-4 flex flex-wrap items-end gap-3">
+              {r.range && (
+                <>
+                  <label className="text-sm">From<input type="date" name="from" defaultValue={start} max={today} className="mt-1 block h-9 rounded-md border bg-background px-2" /></label>
+                  <label className="text-sm">To<input type="date" name="to" defaultValue={today} max={today} className="mt-1 block h-9 rounded-md border bg-background px-2" /></label>
+                </>
+              )}
+              <Button type="submit" variant="outline">Download CSV</Button>
+            </form>
+          </li>
+        ))}
+      </ul>
     </div>
-  );
+  )
 }

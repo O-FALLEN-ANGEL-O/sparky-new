@@ -1,96 +1,63 @@
-'use client';
+import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { logout } from '@/app/actions/auth'
+import { Sidebar } from '@/components/dash/sidebar'
+import { ThemeToggle } from '@/components/dash/theme-toggle'
+import { db, schema } from '@/db'
+import { can, ROLE_LABEL } from '@/lib/roles'
+import { requireUser } from '@/lib/server/auth'
+import { STAFF_NAV } from '@/lib/staff-nav'
+import Link from 'next/link'
 
-import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
-import { SidebarNav } from '@/components/dashboard/sidebar-nav';
-import { Bell, LogOut, User as UserIcon } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+export const metadata: Metadata = { title: { default: 'Dashboard', template: '%s · Sparkle staff' }, robots: { index: false } }
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { user, logout } = useAuth();
-  const router = useRouter();
+const count = async (q: Promise<{ n: number }[]>) => (await q)[0]?.n ?? 0
 
-  useEffect(() => {
-    if (user === null) {
-      router.push('/');
-    }
-  }, [user, router]);
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser({ next: '/dashboard' })
+  if (user.role === 'customer') redirect('/account')
+  if (user.role === 'delivery_agent') redirect('/delivery')
 
-  if (!user) {
-    return (
-      <div className="flex min-h-screen w-full bg-background">
-        <div className="hidden md:flex w-64 flex-col border-r p-4 space-y-4">
-          <Skeleton className="h-10 w-32" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-        <div className="flex-1 p-6">
-          <Skeleton className="h-full w-full" />
-        </div>
-      </div>
-    );
+  const groups = STAFF_NAV.map((g) => ({
+    ...g,
+    items: g.items.filter((i) => (!i.any && !i.roles) || i.any?.some((p) => can(user.role, p)) || i.roles?.includes(user.role)),
+  })).filter((g) => g.items.length)
+
+  const badges: Record<string, number> = {}
+  if (can(user.role, 'orders.view')) {
+    badges['/dashboard/orders'] = await count(db.select({ n: sql<number>`count(*)::int` }).from(schema.orders).where(eq(schema.orders.status, 'confirmed')))
+  }
+  if (can(user.role, 'deliveries.manage')) {
+    badges['/dashboard/deliveries'] = await count(
+      db.select({ n: sql<number>`count(*)::int` }).from(schema.deliveries).where(eq(schema.deliveries.status, 'pending')),
+    )
+  }
+  if (can(user.role, 'leave.approve')) {
+    badges['/dashboard/leave'] = await count(db.select({ n: sql<number>`count(*)::int` }).from(schema.leaveRequests).where(eq(schema.leaveRequests.status, 'pending')))
+  }
+  if (can(user.role, 'recruitment.manage')) {
+    badges['/dashboard/recruitment'] = await count(db.select({ n: sql<number>`count(*)::int` }).from(schema.applications).where(eq(schema.applications.status, 'new')))
+  }
+  if (can(user.role, 'tasks.own')) {
+    badges['/dashboard/tasks'] = await count(
+      db.select({ n: sql<number>`count(*)::int` }).from(schema.tasks).where(and(eq(schema.tasks.assigneeId, user.id), inArray(schema.tasks.status, ['todo', 'in_progress']))),
+    )
   }
 
   return (
-    <SidebarProvider>
-        <Sidebar>
-            <SidebarNav role={user.role} />
-        </Sidebar>
-        <SidebarInset>
-            <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6">
-                <SidebarTrigger className="sm:hidden" />
-                <div className="flex-1">
-                    <h1 className="font-semibold text-lg capitalize">{user.role} Dashboard</h1>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon">
-                        <Bell className="h-5 w-5" />
-                        <span className="sr-only">Notifications</span>
-                    </Button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                                <Avatar>
-                                    <AvatarImage src={user.avatar} alt={user.name} />
-                                    <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem>
-                              <UserIcon className="mr-2 h-4 w-4" />
-                              <span>Profile</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>Settings</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => {
-                                logout();
-                            }}>
-                              <LogOut className="mr-2 h-4 w-4" />
-                              <span>Logout</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-            </header>
-            <main className="flex-1 p-4 sm:p-6 bg-muted/40 overflow-y-auto">
-                {children}
-            </main>
-        </SidebarInset>
-    </SidebarProvider>
-  );
+    <div className="flex min-h-dvh bg-[#f7f5f0] dark:bg-background">
+      <Sidebar groups={groups} badges={badges} user={{ name: user.name, roleLabel: ROLE_LABEL[user.role] }} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 items-center justify-end gap-2 border-b bg-background/80 px-4 backdrop-blur md:px-8">
+          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">View store</Link>
+          <ThemeToggle />
+          <form action={logout}>
+            <button className="h-9 px-3 text-sm text-muted-foreground hover:text-foreground">Sign out</button>
+          </form>
+        </header>
+        <main id="main" className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+      </div>
+    </div>
+  )
 }

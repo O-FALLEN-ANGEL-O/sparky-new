@@ -1,67 +1,42 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { getHrOnboardingTasks } from '@/lib/db';
-import { UserCog, UserPlus, FileEdit } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Progress } from '@/components/ui/progress';
-import { Suspense } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { asc, eq } from 'drizzle-orm'
+import { Empty, PageHeader, Panel, Pill } from '@/components/dash/ui'
+import { db, schema } from '@/db'
+import { dateLong, dateShort } from '@/lib/format'
+import { requireUser } from '@/lib/server/auth'
+import { AddStep, Step } from './onboarding-ui'
 
-async function OnboardingTasks() {
-    const onboardingTasks = await getHrOnboardingTasks();
-    const completedTasks = onboardingTasks.filter(t => t.completed).length;
-    const progress = (completedTasks / onboardingTasks.length) * 100;
+export const metadata = { title: 'Onboarding' }
 
-    return (
-        <>
-        <div className="flex items-center gap-4 mb-4">
-            <span className="font-semibold">Overall Progress:</span>
-            <Progress value={progress} className="w-[60%]" />
-            <span>{Math.round(progress)}%</span>
-        </div>
-        <div className="space-y-3">
-            {onboardingTasks.map(task => (
-                <div key={task.id} className="flex items-center gap-3 p-3 border rounded-md bg-background hover:bg-muted/50 transition-colors">
-                    <Checkbox defaultChecked={task.completed} id={`task-${task.id}`} />
-                    <label htmlFor={`task-${task.id}`} className="text-sm font-medium flex-1 cursor-pointer">{task.task}</label>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <FileEdit className="h-4 w-4" />
-                    </Button>
-                </div>
-            ))}
-        </div>
-        </>
-    );
-}
-
-export default function OnboardingPage() {
+export default async function Onboarding() {
+  await requireUser({ permission: 'onboarding.manage' })
+  const rows = await db
+    .select({ t: schema.onboardingTasks, name: schema.users.name, title: schema.employees.title, joinDate: schema.employees.joinDate })
+    .from(schema.onboardingTasks)
+    .innerJoin(schema.users, eq(schema.users.id, schema.onboardingTasks.userId))
+    .innerJoin(schema.employees, eq(schema.employees.userId, schema.onboardingTasks.userId))
+    .orderBy(asc(schema.onboardingTasks.sort))
+  const people = [...new Map(rows.map((r) => [r.t.userId, r])).values()]
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-            <UserCog className="h-8 w-8" />
-            <div>
-              <h1 className="text-3xl font-bold">Employee Onboarding</h1>
-              <p className="text-muted-foreground">Manage and track the onboarding process for new hires.</p>
-            </div>
+      <PageHeader title="Onboarding" description="A checklist starts automatically for everyone you add in People. New hires can tick off their own steps in the HR portal." />
+      {people.length ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          {people.map((p) => {
+            const steps = rows.filter((r) => r.t.userId === p.t.userId)
+            const done = steps.filter((s) => s.t.done).length
+            return (
+              <Panel key={p.t.userId} title={p.name} description={`${p.title} · joined ${dateLong(p.joinDate)}`} action={<Pill tone={done === steps.length ? 'ok' : 'gold'}>{done} of {steps.length} done</Pill>}>
+                <div className="divide-y">
+                  {steps.map((s) => <Step key={s.t.id} id={s.t.id} title={s.t.title} done={s.t.done} due={s.t.dueDate ? dateShort(s.t.dueDate) : undefined} />)}
+                </div>
+                <AddStep userId={p.t.userId} />
+              </Panel>
+            )
+          })}
         </div>
-        <Button>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Start New Onboarding
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Onboarding Checklist for Alex Ray</CardTitle>
-          <CardDescription>Status of tasks for the newest joinee.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <Suspense fallback={<Skeleton className="h-[200px] w-full" />}>
-                <OnboardingTasks />
-            </Suspense>
-        </CardContent>
-      </Card>
+      ) : (
+        <Empty title="Nobody is onboarding">Add a person in People to start a checklist.</Empty>
+      )}
     </div>
-  );
+  )
 }
